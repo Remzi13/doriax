@@ -1,11 +1,19 @@
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 
+function(doriax_set_default_option variable_name default_value)
+    if(NOT DEFINED ${variable_name})
+        set(${variable_name} ${default_value} PARENT_SCOPE)
+    endif()
+endfunction()
+
 # =============================================================
 # STANDALONE PROJECT SETUP
 # Only runs when this file is used as the top-level build
 # (i.e. building doriax-project outside the editor).
 # =============================================================
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+option(DORIAX_BUILD_STANDALONE "Build the standalone executable when this file is the top-level project" ON)
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALONE)
     cmake_minimum_required(VERSION 3.15)
 
     if(NOT DEFINED APP_NAME)
@@ -36,9 +44,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     # Project-wide runtime settings are injected here by the editor Exporter.
     # Standalone engine builds keep the defaults declared by each platform.
     # @DORIAX_PROJECT_SETTINGS@
-    if(NOT DEFINED DORIAX_VSYNC_ENABLED)
-        set(DORIAX_VSYNC_ENABLED ON)
-    endif()
+    doriax_set_default_option(DORIAX_VSYNC_ENABLED ON)
     if(DORIAX_VSYNC_ENABLED)
         set(DORIAX_VSYNC_ENABLED_VALUE 1)
     else()
@@ -46,26 +52,14 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     endif()
     add_definitions("-DDORIAX_VSYNC_ENABLED=${DORIAX_VSYNC_ENABLED_VALUE}")
 
-    if(NOT DEFINED DORIAX_WINDOW_WIDTH)
-        set(DORIAX_WINDOW_WIDTH 960)
-    endif()
-    if(NOT DEFINED DORIAX_WINDOW_HEIGHT)
-        set(DORIAX_WINDOW_HEIGHT 540)
-    endif()
+    doriax_set_default_option(DORIAX_WINDOW_WIDTH 960)
+    doriax_set_default_option(DORIAX_WINDOW_HEIGHT 540)
     # 0 = windowed, 1 = maximized, 2 = fullscreen
-    if(NOT DEFINED DORIAX_WINDOW_MODE)
-        set(DORIAX_WINDOW_MODE 0)
-    endif()
-    if(NOT DEFINED DORIAX_WINDOW_RESIZABLE)
-        set(DORIAX_WINDOW_RESIZABLE ON)
-    endif()
-    if(NOT DEFINED DORIAX_WINDOW_TITLE)
-        set(DORIAX_WINDOW_TITLE "Doriax")
-    endif()
+    doriax_set_default_option(DORIAX_WINDOW_MODE 0)
+    doriax_set_default_option(DORIAX_WINDOW_RESIZABLE ON)
+    doriax_set_default_option(DORIAX_WINDOW_TITLE "Doriax")
     # ON only when the editor export generated project/app_icon.h (+ .ico/.rc)
-    if(NOT DEFINED DORIAX_WINDOW_ICON)
-        set(DORIAX_WINDOW_ICON OFF)
-    endif()
+    doriax_set_default_option(DORIAX_WINDOW_ICON OFF)
     if(DORIAX_WINDOW_RESIZABLE)
         set(DORIAX_WINDOW_RESIZABLE_VALUE 1)
     else()

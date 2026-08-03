@@ -39,6 +39,10 @@ endif()
 
 set(DORIAX_SHARED ON)
 
+option(DORIAX_BUILD_EDITOR "Build the editor executable" ON)
+option(DORIAX_BUILD_ENGINE "Build the engine library" ON)
+option(DORIAX_BUILD_SHADERCOMPILER "Build the shader compiler" ON)
+
 set(ENABLE_OPT OFF CACHE BOOL "Enables spirv-opt capability if present" FORCE)
 
 # Tracy Profiler Integration Option
@@ -384,7 +388,9 @@ include_directories (${DORIAX_ROOT}/renders)
 
 include_directories (${SHADERCOMPILER_ROOT}/src)
 
-add_subdirectory(${DORIAX_ROOT})
+if(DORIAX_BUILD_ENGINE)
+    add_subdirectory(${DORIAX_ROOT})
+endif()
 
 # The engine compiles sokol's Vulkan backend, so it needs the headers and the
 # loader itself. Only the standalone engine build sets this up on its own.
@@ -392,7 +398,9 @@ if(GRAPHIC_BACKEND STREQUAL "vulkan")
     target_link_libraries(doriax PUBLIC Vulkan::Vulkan)
 endif()
 
-add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
+if(DORIAX_BUILD_SHADERCOMPILER)
+    add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
+endif()
 
 add_subdirectory(libs/nfd)
 add_subdirectory(libs/yaml-cpp)
@@ -615,85 +623,103 @@ function(configure_doriax_editor_target target_name)
     endif()
 endfunction()
 
-add_executable(
-    doriax-editor
-
-    ${PLATFORM_EXEC_FLAGS}
-
-    ${DORIAX_EDITOR_SOURCES}
-    ${DORIAX_EDITOR_ICON_OBJECTS}
-)
-
-configure_doriax_editor_target(doriax-editor)
-
-if(PLATFORM_PROPERTIES_FLAGS)
-    set_target_properties(doriax-editor PROPERTIES ${PLATFORM_PROPERTIES_FLAGS})
+if(DORIAX_BUILD_EDITOR AND NOT DORIAX_BUILD_ENGINE)
+    message(FATAL_ERROR "DORIAX_BUILD_EDITOR requires DORIAX_BUILD_ENGINE=ON")
 endif()
 
-if(TRACY_ENABLE)
-    add_custom_command(TARGET doriax-editor POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
-            $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
-            $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
-        COMMENT "Copying Tracy runtime library next to the editor executable"
-    )
-endif()
-
-add_custom_target(copy_doriax_editor_engine
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/engine
-        $<TARGET_FILE_DIR:doriax-editor>/engine
-    COMMENT "Copying engine to executable directory"
-)
-
-add_dependencies(doriax-editor copy_doriax_editor_engine)
-
-set(DORIAX_EDITOR_INSTALL_TARGETS doriax-editor)
-
-# Windows GUI-subsystem executables do not behave like normal CLI programs
-# when launched from cmd.exe/PowerShell. Provide a console-subsystem twin for
-# automation while keeping Unix-like platforms on a single editor binary.
-#
-# EXCLUDE_FROM_ALL keeps it out of the default ("all") build, so local and IDE
-# builds only produce doriax-editor. Release builds compile it explicitly by
-# name (`cmake --build --target doriax-editor-cmd`, see
-# .github/workflows/cmake.yml); the install rule below still installs it because
-# CI builds it before installing.
-if(WIN32)
-    # Its own icon because both executables install to the same folder
-    doriax_add_windows_resource(
-        DORIAX_EDITOR_CMD_ICON_OBJECTS
-        doriax-editor-cmd
-        "doriax-editor-cmd.ico"
-        "doriax-editor-cmd.exe"
-        "Doriax Engine Editor (command line)"
-    )
-
+if(DORIAX_BUILD_EDITOR)
     add_executable(
-        doriax-editor-cmd
+        doriax-editor
 
-        EXCLUDE_FROM_ALL
+        ${PLATFORM_EXEC_FLAGS}
 
         ${DORIAX_EDITOR_SOURCES}
-        ${DORIAX_EDITOR_CMD_ICON_OBJECTS}
+        ${DORIAX_EDITOR_ICON_OBJECTS}
     )
 
-    configure_doriax_editor_target(doriax-editor-cmd)
-    add_dependencies(doriax-editor-cmd copy_doriax_editor_engine)
-    list(APPEND DORIAX_EDITOR_INSTALL_TARGETS doriax-editor-cmd)
+    configure_doriax_editor_target(doriax-editor)
+
+    if(PLATFORM_PROPERTIES_FLAGS)
+        set_target_properties(doriax-editor PROPERTIES ${PLATFORM_PROPERTIES_FLAGS})
+    endif()
+
+    if(TRACY_ENABLE)
+        add_custom_command(TARGET doriax-editor POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
+                $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
+                $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
+            COMMENT "Copying Tracy runtime library next to the editor executable"
+        )
+    endif()
+
+    add_custom_target(copy_doriax_editor_engine
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/engine
+            $<TARGET_FILE_DIR:doriax-editor>/engine
+        COMMENT "Copying engine to executable directory"
+    )
+
+    add_dependencies(doriax-editor copy_doriax_editor_engine)
+
+    set(DORIAX_EDITOR_INSTALL_TARGETS doriax-editor)
+
+    # Windows GUI-subsystem executables do not behave like normal CLI programs
+    # when launched from cmd.exe/PowerShell. Provide a console-subsystem twin for
+    # automation while keeping Unix-like platforms on a single editor binary.
+    #
+    # EXCLUDE_FROM_ALL keeps it out of the default ("all") build, so local and IDE
+    # builds only produce doriax-editor. Release builds compile it explicitly by
+    # name (`cmake --build --target doriax-editor-cmd`, see
+    # .github/workflows/cmake.yml); the install rule below still installs it because
+    # CI builds it before installing.
+    if(WIN32)
+        # Its own icon because both executables install to the same folder
+        doriax_add_windows_resource(
+            DORIAX_EDITOR_CMD_ICON_OBJECTS
+            doriax-editor-cmd
+            "doriax-editor-cmd.ico"
+            "doriax-editor-cmd.exe"
+            "Doriax Engine Editor (command line)"
+        )
+
+        add_executable(
+            doriax-editor-cmd
+
+            EXCLUDE_FROM_ALL
+
+            ${DORIAX_EDITOR_SOURCES}
+            ${DORIAX_EDITOR_CMD_ICON_OBJECTS}
+        )
+
+        configure_doriax_editor_target(doriax-editor-cmd)
+        add_dependencies(doriax-editor-cmd copy_doriax_editor_engine)
+        list(APPEND DORIAX_EDITOR_INSTALL_TARGETS doriax-editor-cmd)
+    endif()
+else()
+    set(DORIAX_EDITOR_INSTALL_TARGETS)
 endif()
 
-install(TARGETS ${DORIAX_EDITOR_INSTALL_TARGETS} doriax
+set(DORIAX_INSTALL_TARGETS)
+if(DORIAX_BUILD_ENGINE)
+    list(APPEND DORIAX_INSTALL_TARGETS doriax)
+endif()
+if(DORIAX_BUILD_EDITOR)
+    list(APPEND DORIAX_INSTALL_TARGETS ${DORIAX_EDITOR_INSTALL_TARGETS})
+endif()
+
+install(TARGETS ${DORIAX_INSTALL_TARGETS}
         CONFIGURATIONS Release MinSizeRel 
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION bin
         ARCHIVE DESTINATION bin
 )
 
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/engine
-        DESTINATION bin
-        CONFIGURATIONS Release MinSizeRel
-)
+if(DORIAX_BUILD_ENGINE)
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/engine
+            DESTINATION bin
+            CONFIGURATIONS Release MinSizeRel
+    )
+endif()
