@@ -41,8 +41,19 @@ set(DORIAX_SHARED ON)
 
 set(ENABLE_OPT OFF CACHE BOOL "Enables spirv-opt capability if present" FORCE)
 
-# Each desktop OS is served by its own native backend and nothing else, so this
-# is a detection rather than a choice.
+# Tracy Profiler Integration Option
+option(TRACY_ENABLE "Enable Tracy Profiler" ON)
+
+if(TRACY_ENABLE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(TRACY_STATIC OFF CACHE BOOL "Build Tracy as a shared library for PIC compatibility" FORCE)
+    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    add_subdirectory(libs/tracy EXCLUDE_FROM_ALL)
+
+    add_compile_definitions(TRACY_ENABLE)
+    add_compile_definitions(TRACY_IMPORTS)
+endif()
+
 if(NOT API_BACKEND)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set(API_BACKEND "linux")
@@ -320,6 +331,10 @@ add_custom_command(
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 
+if(TRACY_ENABLE)
+    include_directories (libs/tracy/public)
+endif()
+
 include_directories (${DORIAX_ROOT}/libs/sokol)
 include_directories (${DORIAX_ROOT}/libs/json)
 include_directories (${DORIAX_ROOT}/libs/lua)
@@ -588,11 +603,13 @@ function(configure_doriax_editor_target target_name)
     if(APPLE)
         set_target_properties(${target_name} PROPERTIES
             BUILD_WITH_INSTALL_RPATH TRUE
+            BUILD_RPATH "@loader_path"
             INSTALL_RPATH "@loader_path"
         )
     elseif(UNIX)
         set_target_properties(${target_name} PROPERTIES
             BUILD_WITH_INSTALL_RPATH TRUE
+            BUILD_RPATH "$ORIGIN;$ORIGIN/libs/tracy;${CMAKE_BINARY_DIR}/libs/tracy"
             INSTALL_RPATH "$ORIGIN"
         )
     endif()
@@ -611,6 +628,18 @@ configure_doriax_editor_target(doriax-editor)
 
 if(PLATFORM_PROPERTIES_FLAGS)
     set_target_properties(doriax-editor PROPERTIES ${PLATFORM_PROPERTIES_FLAGS})
+endif()
+
+if(TRACY_ENABLE)
+    add_custom_command(TARGET doriax-editor POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
+            $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
+            $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
+        COMMENT "Copying Tracy runtime library next to the editor executable"
+    )
 endif()
 
 add_custom_target(copy_doriax_editor_engine

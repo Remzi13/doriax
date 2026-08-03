@@ -3,6 +3,7 @@
 #include "imgui_internal.h"
 #include "Platform.h"
 #include "Backend.h"
+#include "Profiler.h"
 
 #include "external/IconsFontAwesome6.h"
 #include "command/CommandHandle.h"
@@ -1486,6 +1487,9 @@ void editor::App::engineViewLoaded(){
 }
 
 void editor::App::engineRender(){
+
+    PROFILE_FUNCTION();
+
     processMainThreadTasks();
     project.refreshLinkedMaterials();
     renderedSceneThisFrame = false;

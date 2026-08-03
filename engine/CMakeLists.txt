@@ -146,6 +146,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(PLATFORM_RESOURCES)
     set(PLATFORM_PROPERTIES)
     set(PLATFORM_OPTIONS)
+    add_compile_definitions(TRACY_ENABLE)
+    
 
     find_package(Threads REQUIRED)
 
@@ -851,6 +853,8 @@ set(DORIAX_SRCS
     core/util/StringUtils.cpp
     core/util/UniqueToken.cpp
     core/util/XMLUtils.cpp
+	core/Profiler.h
+	core/Profiler.cpp
 )
 
 set(RENDER_SOKOL_SRC
@@ -900,6 +904,14 @@ set_target_properties(
     CXX_STANDARD_REQUIRED ON
 )
 
+if(UNIX)
+    set_target_properties(doriax PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE
+        BUILD_RPATH "$ORIGIN;$ORIGIN/libs/tracy;${CMAKE_BINARY_DIR}/libs/tracy"
+        INSTALL_RPATH "$ORIGIN"
+    )
+endif()
+
 if(DORIAX_SHARED)
     target_compile_definitions(doriax 
         PRIVATE 
@@ -907,6 +919,10 @@ if(DORIAX_SHARED)
         PUBLIC
         DORIAX_SHARED
     )
+endif()
+
+if(TRACY_ENABLE)
+    target_link_libraries(doriax PUBLIC Tracy::TracyClient)
 endif()
 
 # =============================================================
