@@ -4,10 +4,13 @@
 
 #include "PhysicsSystem.h"
 #include "Scene.h"
+#include "Profiler.h"
 #include "util/Angle.h"
 
 #include "util/Box2DAux.h"
 #include "util/JoltPhysicsAux.h"
+
+
 
 #include <algorithm>
 #include <cmath>
@@ -2445,7 +2448,7 @@ void PhysicsSystem::fixedUpdate(double dt){
     if (paused) {
         return;
     }
-
+    PROFILE_FUNCTION();
     const float fixedStep = (float)dt;
 
 	auto bodies2d = scene->getComponentArray<Body2DComponent>();
@@ -2595,7 +2598,7 @@ void PhysicsSystem::fixedUpdate(double dt){
 }
 
 void PhysicsSystem::draw(){
-
+    PROFILE_SCOPE("PhysicsSystem::draw");
 }
 
 void PhysicsSystem::onComponentAdded(Entity entity, ComponentId componentId) {

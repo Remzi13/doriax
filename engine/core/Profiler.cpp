@@ -1,6 +1,6 @@
 #include "Profiler.h"
 
-namespace Doriax {
+namespace doriax {
 
     void Profiler::Init() {
 #if PROFILE_ENABLED

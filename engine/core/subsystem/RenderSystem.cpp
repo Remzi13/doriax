@@ -5,9 +5,12 @@
 #include "RenderSystem.h"
 #include "object/Camera.h"
 #include "math/Quaternion.h"
+
 #include "Scene.h"
 #include "Engine.h"
 #include "System.h"
+#include "Profiler.h"
+
 #include "render/Render.h"
 #include "render/ObjectRender.h"
 #include "render/SystemRender.h"
@@ -5890,7 +5893,7 @@ void RenderSystem::update(double dt){
     if (paused) {
         return;
     }
-
+    PROFILE_SCOPE("RenderSystem::update");
     int numLights = checkLightsAndShadow();
 
     auto transforms = scene->getComponentArray<Transform>();
@@ -6412,6 +6415,7 @@ void RenderSystem::update(double dt){
 }
 
 void RenderSystem::draw(){
+    PROFILE_SCOPE("RenderSystem::draw");
     std::priority_queue<TransparentRenderData, std::vector<TransparentRenderData>, TransparentRenderComparison> transparentRenders;
 
     auto transforms = scene->getComponentArray<Transform>();

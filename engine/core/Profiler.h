@@ -28,7 +28,9 @@
 
 #if PROFILE_ENABLED
 
-
+#define PROFILE_INIT() doriax::Profiler::Init()
+#define PROFILE_BEGIN_FRAME() doriax::Profiler::BeginFrame()
+#define PROFILE_END_FRAME() doriax::Profiler::EndFrame()
 #define PROFILE_FRAME FrameMark
 #define PROFILE_FUNCTION() ZoneScoped
 #define PROFILE_FUNCTION_N(name) ZoneScopedN(name)
@@ -59,6 +61,9 @@
 #else
 
     // ������ �������� ��� ����� ��� Tracy (TRACY_ENABLE=OFF)
+#define PROFILE_INIT()
+#define PROFILE_BEGIN_FRAME()
+#define PROFILE_END_FRAME()
 #define PROFILE_FRAME
 #define PROFILE_FUNCTION()
 #define PROFILE_FUNCTION_N(name)
@@ -75,7 +80,7 @@
 
 #endif
 
-namespace Doriax {
+namespace doriax {
 
     class DORIAX_API Profiler {
     public:

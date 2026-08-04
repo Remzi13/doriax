@@ -3,6 +3,8 @@
 //
 
 #include "Scene.h"
+#include "Profiler.h"
+
 
 #include "object/Camera.h"
 #include "Engine.h"
@@ -542,6 +544,7 @@ void Scene::destroy(){
 }
 
 void Scene::draw(){
+    PROFILE_SCOPE("Scene::draw");
     for (auto const& pair : systems){
         pair.second->draw();
     }
@@ -549,12 +552,14 @@ void Scene::draw(){
 
 
 void Scene::update(double dt){
+    PROFILE_SCOPE("Scene::update");
     for (auto const& pair : systems){
         pair.second->update(dt);
     }
 }
 
 void Scene::fixedUpdate(double dt){
+    PROFILE_SCOPE("Scene::fixedUpdate");
     for (auto const& pair : systems){
         pair.second->fixedUpdate(dt);
     }

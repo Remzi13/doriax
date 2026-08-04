@@ -21,6 +21,8 @@
     #include "thread/ThreadPoolManager.h"
 #endif
 
+#include "Profiler.h"
+
 #include "sokol_time.h"
 
 using namespace doriax;
@@ -951,7 +953,7 @@ void Engine::systemViewChanged(){
 
 void Engine::systemDraw(){
     const int MAX_UPDATES_PER_FRAME = 100;
-
+    PROFILE_SCOPE("Engine::systemDraw");
     //Deltatime in seconds
     double rawDelta = stm_sec(stm_laptime(&lastTime));
     framerate = (rawDelta > 0.0) ? (float)(1.0 / rawDelta) : 0.0f;
