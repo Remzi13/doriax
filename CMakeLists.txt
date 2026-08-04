@@ -644,15 +644,24 @@ if(DORIAX_BUILD_EDITOR)
     endif()
 
     if(TRACY_ENABLE)
-        add_custom_command(TARGET doriax-editor POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
-                $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
-                $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
-            COMMENT "Copying Tracy runtime library next to the editor executable"
-        )
+        if (WIN32)
+            add_custom_command(TARGET doriax-editor POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_BINARY_DIR}/libs/tracy/$<CONFIG>/TracyClient.dll
+                    $<TARGET_FILE_DIR:doriax-editor>/TracyClient.dll
+                COMMENT "Copying TracyClient.dll next to the editor executable"
+            )
+        elseif (UNIX)
+            add_custom_command(TARGET doriax-editor POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
+                    $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
+                    $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
+                COMMENT "Copying Tracy runtime library next to the editor executable"
+            )
+        endif()
     endif()
 
     add_custom_target(copy_doriax_editor_engine

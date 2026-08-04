@@ -11,10 +11,12 @@
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES 1
 #endif
-#include <GL/gl.h>
-#include <GL/glext.h>
-#include <tracy/TracyOpenGL.hpp>
-#define HAS_TRACY_GPU 1
+#if defined(LINUX)
+    #include <GL/gl.h>
+    #include <GL/glext.h>
+    #include <tracy/TracyOpenGL.hpp>
+    #define HAS_TRACY_GPU 1
+#endif
 #endif
 
 #define PROFILE_ENABLED 1
