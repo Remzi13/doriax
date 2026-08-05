@@ -62,7 +62,7 @@
 
 #else
 
-    // ������ �������� ��� ����� ��� Tracy (TRACY_ENABLE=OFF)
+    //      Tracy (TRACY_ENABLE=OFF)
 #define PROFILE_INIT()
 #define PROFILE_BEGIN_FRAME()
 #define PROFILE_END_FRAME()

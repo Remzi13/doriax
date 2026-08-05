@@ -46,6 +46,7 @@
 #include "shader/ShaderBuilder.h"
 #include "SceneManager.h"
 #include "BundleManager.h"
+#include "Profiler.h"
 
 using namespace doriax;
 
@@ -2367,6 +2368,7 @@ editor::SceneProject* editor::Project::createRuntimeCloneFromSource(const SceneP
 }
 
 void editor::Project::updateSceneCppScripts(SceneProject* sceneProject) {
+    PROFILE_SCOPE("Project::updateSceneCppScripts");
     if (!sceneProject || !sceneProject->scene) {
         return;
     }
@@ -7132,6 +7134,7 @@ bool editor::Project::saveSceneForPlayStartup(SceneProject* sceneProject) {
 }
 
 void editor::Project::runPlayStartup(const std::shared_ptr<PlaySession>& session, uint32_t sceneId) {
+    PROFILE_SCOPE("Project::runPlayStartup");
     auto isCancelled = [session]() {
         return session->cancelled.load(std::memory_order_acquire);
     };

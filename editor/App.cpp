@@ -1213,6 +1213,7 @@ void editor::App::setup() {
 }
 
 void editor::App::show(){
+    PROFILE_SCOPE("App::show");
     if (resourcesWindow->isFocused()) {
         lastFocusedWindow = LastFocusedWindow::Resources;
     } else if (codeEditor->isFocused()) {
@@ -2147,6 +2148,7 @@ void editor::App::processNextSaveDialog() {
 }
 
 void editor::App::processMainThreadTasks() {
+    PROFILE_SCOPE("App::processMainThreadTasks");
     std::queue<std::function<void()>> tasks;
     {
         std::lock_guard<std::mutex> lock(mainThreadTaskMutex);

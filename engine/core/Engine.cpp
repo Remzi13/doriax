@@ -995,7 +995,10 @@ void Engine::systemDraw(){
 
             int fixedLoops = 0;
             while (updateTimeCount >= updateTime && fixedLoops < MAX_UPDATES_PER_FRAME) {
-                Engine::onFixedUpdate.call();
+                {
+                    PROFILE_SCOPE("Engine::onFixedUpdate");
+                    Engine::onFixedUpdate.call();
+                }
                 for (int i = 0; i < scenes.size(); i++) {
                     scenes[i]->fixedUpdate(updateTime);
                 }
@@ -1012,11 +1015,17 @@ void Engine::systemDraw(){
 
         // 2) Variable-timestep phase. Runs exactly once per frame with the real frame delta.
         //    Used for animation, input, UI, and any subsystem overriding update().
-        Engine::onUpdate.call();
+        {
+            PROFILE_SCOPE("Engine::onUpdate");
+            Engine::onUpdate.call();
+        }
         for (int i = 0; i < scenes.size(); i++) {
             scenes[i]->update(frameDelta);
         }
-        Engine::onPostUpdate.call();
+        {
+            PROFILE_SCOPE("Engine::onPostUpdate");
+            Engine::onPostUpdate.call();
+        }
     }
 
     Engine::onDraw.call();
