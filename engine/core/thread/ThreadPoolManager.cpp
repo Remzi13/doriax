@@ -4,6 +4,8 @@
 
 #include "ThreadPoolManager.h"
 
+#include "Profiler.h"
+
 using namespace doriax;
 
 std::unique_ptr<ThreadPoolManager> ThreadPoolManager::instance = nullptr;
@@ -26,7 +28,10 @@ ThreadPoolManager::ThreadPoolManager(size_t numThreads) {
                     task = std::move(this->tasks.front());
                     this->tasks.pop();
                 }
-                task();
+                {
+                    PROFILE_SCOPE( "ThreadPoolManager::task()" );
+                    task();
+                }
             }
         });
     }

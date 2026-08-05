@@ -10,6 +10,7 @@
 #include "SokolCmdQueue.h"
 #include "SokolShader.h"
 #include "Engine.h"
+#include "Profiler.h"
 
 using namespace doriax;
 
@@ -406,6 +407,8 @@ bool SokolObject::endLoad(uint8_t pipelines, bool enableFaceCulling, CullingMode
 }
 
 bool SokolObject::beginDraw(PipelineType pipType){
+
+    PROFILE_SCOPE( "SokolObject::beginDraw" );
     sg_pipeline selectedPipeline = pip;
     if (pipType == PipelineType::PIP_DEPTH){
         selectedPipeline = depth_pip;
@@ -438,6 +441,7 @@ void SokolObject::applyUniformBlock(int slot, unsigned int count, void* data){
 }
 
 void SokolObject::draw(unsigned int baseElement, unsigned int vertexCount, unsigned int instanceCount){
+    PROFILE_SCOPE( "SokolObject::draw" );
     //SokolCmdQueue::add_command_apply_bindings(bind);
     sg_apply_bindings(bind);
     //SokolCmdQueue::add_command_draw(0, vertexCount, 1);

@@ -1488,7 +1488,7 @@ void editor::App::engineViewLoaded(){
 
 void editor::App::engineRender(){
 
-    PROFILE_FUNCTION();
+    PROFILE_SCOPE("App::engineRender");
 
     processMainThreadTasks();
     project.refreshLinkedMaterials();
