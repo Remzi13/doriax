@@ -1,11 +1,12 @@
 add_library(
-
     sokol
-
     STATIC
-
     sokol.cpp
+)
 
+target_include_directories(sokol PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../core
 )
 
 set(SOKOL_LINK_LIBRARIES)

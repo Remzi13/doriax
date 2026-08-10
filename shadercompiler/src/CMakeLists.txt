@@ -11,6 +11,10 @@ set(SHADERCOMPILER_SOURCES
 # Build as a static library
 add_library(shadercompiler STATIC ${SHADERCOMPILER_SOURCES})
 
+target_include_directories(shadercompiler PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(shadercompiler PRIVATE
     glslang
     OSDependent 

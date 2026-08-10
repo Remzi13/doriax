@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(doriax-editor)
 
-# Same as CI (.github/workflows/cmake.yml): git describe --tags --always --dirty.
-# CI passes DORIAXEDITOR_VERSION explicitly; local builds ask git here.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Tag when the commit has one, short hash otherwise. CI passes it in, local
+# builds ask git so Help > About shows something real.
 if(NOT DORIAXEDITOR_VERSION)
     find_package(Git QUIET)
     if(GIT_FOUND)
@@ -272,22 +275,12 @@ endif()
 
 set(SHADERCOMPILER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/shadercompiler)
 
-add_definitions("-DDORIAX_EDITOR")
-add_definitions("-DDORIAX_CRASH_GUARD")
+add_compile_definitions(
+    DORIAX_EDITOR
+    DORIAX_CRASH_GUARD
+    NO_LUA_INIT
+)
 
-add_definitions("-DNO_LUA_INIT")
-#add_definitions("-DNO_CPP_INIT")
-if(GRAPHIC_BACKEND STREQUAL "vulkan")
-    add_definitions("-DSOKOL_VULKAN")
-elseif(GRAPHIC_BACKEND STREQUAL "metal")
-    add_definitions("-DSOKOL_METAL")
-else()
-    add_definitions("-DSOKOL_GLCORE")
-endif()
-if(NATIVE_MENU)
-    add_definitions("-DDORIAX_NATIVE_MENU")
-endif()
-add_definitions("-DWITH_MINIAUDIO") # For SoLoud
 set(NFD_PORTAL ON CACHE BOOL "Use xdg-desktop-portal instead of GTK") # For NFD
 
 set(SHADERS_DIR "${CMAKE_SOURCE_DIR}/engine/tools/shaderlib")
@@ -333,61 +326,6 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
-include_directories (${CMAKE_CURRENT_SOURCE_DIR})
-
-if(TRACY_ENABLE)
-    include_directories (libs/tracy/public)
-endif()
-
-include_directories (${DORIAX_ROOT}/libs/sokol)
-include_directories (${DORIAX_ROOT}/libs/json)
-include_directories (${DORIAX_ROOT}/libs/lua)
-include_directories (${DORIAX_ROOT}/libs/luabridge3)
-include_directories (${DORIAX_ROOT}/libs/box2d/include)
-include_directories (${DORIAX_ROOT}/libs/joltphysics)
-include_directories (${DORIAX_ROOT}/libs/stb)
-include_directories (${DORIAX_ROOT}/libs/harfbuzz)
-include_directories (${DORIAX_ROOT}/libs/sheenbidi/Headers)
-include_directories (${DORIAX_ROOT}/libs/soloud/include)
-
-include_directories (${DORIAX_ROOT}/core)
-include_directories (${DORIAX_ROOT}/core/action)
-include_directories (${DORIAX_ROOT}/core/buffer)
-include_directories (${DORIAX_ROOT}/core/component)
-include_directories (${DORIAX_ROOT}/core/ecs)
-include_directories (${DORIAX_ROOT}/core/io)
-include_directories (${DORIAX_ROOT}/core/manager)
-include_directories (${DORIAX_ROOT}/core/math)
-include_directories (${DORIAX_ROOT}/core/object)
-include_directories (${DORIAX_ROOT}/core/object/sound)
-include_directories (${DORIAX_ROOT}/core/object/ui)
-include_directories (${DORIAX_ROOT}/core/object/environment)
-include_directories (${DORIAX_ROOT}/core/object/physics)
-include_directories (${DORIAX_ROOT}/core/pool)
-include_directories (${DORIAX_ROOT}/core/registry)
-include_directories (${DORIAX_ROOT}/core/render)
-include_directories (${DORIAX_ROOT}/core/script)
-include_directories (${DORIAX_ROOT}/core/shader)
-include_directories (${DORIAX_ROOT}/core/subsystem)
-include_directories (${DORIAX_ROOT}/core/texture)
-include_directories (${DORIAX_ROOT}/core/util)
-# GamepadMappings.h, shared by GamepadDB (editor) and GamepadLinux (games)
-include_directories (${DORIAX_ROOT}/platform/common)
-# renderer/Renderer.h, which EditorFrame.h includes from one directory up
-include_directories (${EDITOR_DIR}/backend)
-if(API_BACKEND STREQUAL "linux")
-    include_directories (${DORIAX_ROOT}/platform/linux) # WindowLinux.h, GamepadDB.h
-elseif(API_BACKEND STREQUAL "win")
-    include_directories (${DORIAX_ROOT}/platform/win) # GamepadWin.h for BackendWin
-elseif(API_BACKEND STREQUAL "mac")
-    # WindowMac.h for BackendMac, DoriaxGameController.h from the shared Apple path
-    include_directories (${DORIAX_ROOT}/platform/mac)
-    include_directories (${DORIAX_ROOT}/platform/apple)
-endif()
-include_directories (${DORIAX_ROOT}/renders)
-
-include_directories (${SHADERCOMPILER_ROOT}/src)
-
 if(DORIAX_BUILD_ENGINE)
     add_subdirectory(${DORIAX_ROOT})
 endif()
@@ -414,21 +352,10 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_widgets.cpp
 )
 
-# ImGui platform backends go with API_BACKEND above, renderers with GRAPHIC_BACKEND
-if(GRAPHIC_BACKEND STREQUAL "vulkan")
-    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
-elseif(GRAPHIC_BACKEND STREQUAL "metal")
-    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_metal.mm)
-else()
-    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
-endif()
-
-include_directories (${EDITOR_DIR})
-
 add_custom_target(generate_shaders DEPENDS ${SHADERS_HEADER})
 add_custom_target(generate_api_suggestions DEPENDS ${API_SUGGESTIONS_HEADER})
 
-set(DORIAX_EDITOR_SOURCES
+set(EDITOR_CORE_SOURCES
     ${EDITOR_DIR}/main.cpp
     ${EDITOR_DIR}/cli/CommandLine.cpp
     ${EDITOR_DIR}/App.cpp
@@ -444,7 +371,9 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/Generator.cpp
     ${EDITOR_DIR}/Stream.cpp
     ${EDITOR_DIR}/Exporter.cpp
+)
 
+set(EDITOR_AI_SOURCES
     ${EDITOR_DIR}/ai/AiPathUtils.cpp
     ${EDITOR_DIR}/ai/AiProvider.cpp
     ${EDITOR_DIR}/ai/AiService.cpp
@@ -458,7 +387,9 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/ai/ModelCatalog.cpp
     ${EDITOR_DIR}/ai/RateLimitRetry.cpp
     ${EDITOR_DIR}/ai/SecretStore.cpp
+)
 
+set(EDITOR_UTIL_SOURCES
     ${EDITOR_DIR}/util/ShaderHeaderBuilder.cpp
     ${EDITOR_DIR}/util/BidiText.cpp
     ${EDITOR_DIR}/util/GraphicUtils.cpp
@@ -471,9 +402,10 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/util/TerrainMapFileWriter.cpp
     ${EDITOR_DIR}/util/UIUtils.cpp
     ${EDITOR_DIR}/util/CommandRunner.cpp
-
     ${EDITOR_DIR}/shader/ShaderBuilder.cpp
+)
 
+set(EDITOR_WINDOW_SOURCES
     ${EDITOR_DIR}/window/Properties.cpp
     ${EDITOR_DIR}/window/OutputWindow.cpp
     ${EDITOR_DIR}/window/SceneWindow.cpp
@@ -498,7 +430,9 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/window/widget/InputTextContextMenu.cpp
     ${EDITOR_DIR}/window/widget/SemanticSuggestions.cpp
     ${EDITOR_DIR}/window/widget/SelectableTextView.cpp
+)
 
+set(EDITOR_RENDER_SOURCES
     ${EDITOR_DIR}/render/ToolsLayer.cpp
     ${EDITOR_DIR}/render/UILayer.cpp
     ${EDITOR_DIR}/render/SceneRender.cpp
@@ -514,7 +448,9 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/render/preview/MeshPreviewRender.cpp
     ${EDITOR_DIR}/render/preview/DirectionRender.cpp
     ${EDITOR_DIR}/render/preview/ModelRender.cpp
+)
 
+set(EDITOR_COMMAND_SOURCES
     ${EDITOR_DIR}/command/CommandHandle.cpp
     ${EDITOR_DIR}/command/CommandHistory.cpp
     ${EDITOR_DIR}/command/type/AddChildSceneCmd.cpp
@@ -547,7 +483,15 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/command/type/ComponentToBundleLocalCmd.cpp
     ${EDITOR_DIR}/command/type/ComponentToBundleSharedCmd.cpp
     ${EDITOR_DIR}/command/type/ForkShaderCmd.cpp
+)
 
+set(DORIAX_EDITOR_SOURCES
+    ${EDITOR_CORE_SOURCES}
+    ${EDITOR_AI_SOURCES}
+    ${EDITOR_UTIL_SOURCES}
+    ${EDITOR_WINDOW_SOURCES}
+    ${EDITOR_RENDER_SOURCES}
+    ${EDITOR_COMMAND_SOURCES}
     ${IMGUI_SOURCES}
     ${BACKEND_SOURCES}
 )
@@ -560,12 +504,28 @@ endif()
 function(configure_doriax_editor_target target_name)
     add_dependencies(${target_name} generate_shaders generate_api_suggestions)
 
+    target_compile_definitions(${target_name} PRIVATE
+        DORIAX_EDITOR
+        DORIAX_CRASH_GUARD
+        NO_LUA_INIT
+        SOKOL_GLCORE
+        WITH_MINIAUDIO
+    )
+
     target_include_directories(${target_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/${EDITOR_DIR}
+        ${DORIAX_ROOT}/platform/glfw
+        ${SHADERCOMPILER_ROOT}/src
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
         ${OPENGL_INCLUDE_DIR}
         ${GENERATED_DIR}
     )
+
+    if(TRACY_ENABLE)
+        target_include_directories(${target_name} PRIVATE libs/tracy/public)
+    endif()
 
     target_link_libraries(
         ${target_name}
@@ -596,17 +556,6 @@ function(configure_doriax_editor_target target_name)
     if(APPLE)
         target_link_libraries(${target_name} PRIVATE "-framework AppKit")
     endif()
-
-    set_target_properties(
-        ${target_name}
-
-        PROPERTIES
-
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED ON
-        OBJCXX_STANDARD 17
-        OBJCXX_STANDARD_REQUIRED ON
-    )
 
     if(APPLE)
         set_target_properties(${target_name} PROPERTIES

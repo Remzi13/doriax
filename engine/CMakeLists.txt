@@ -650,48 +650,23 @@ if(WIN32)
     endif()
 endif()
 
-include_directories(shaders)
+if(NOT GRAPHIC_BACKEND)
+    set(GRAPHIC_BACKEND "glcore")
+endif()
 
-include_directories(core)
-include_directories(core/action)
-include_directories(core/buffer)
-include_directories(core/component)
-include_directories(core/ecs)
-include_directories(core/io)
-include_directories(core/manager)
-include_directories(core/math)
-include_directories(core/object)
-include_directories(core/object/sound)
-include_directories(core/object/ui)
-include_directories(core/object/environment)
-include_directories(core/object/physics)
-include_directories(core/pool)
-include_directories(core/registry)
-include_directories(core/render)
-include_directories(core/script)
-include_directories(core/shader)
-include_directories(core/subsystem)
-include_directories(core/texture)
-include_directories(core/util)
+if(GRAPHIC_BACKEND STREQUAL "glcore")
+    add_compile_definitions(SOKOL_GLCORE)
+elseif(GRAPHIC_BACKEND STREQUAL "gles3")
+    add_compile_definitions(SOKOL_GLES3)
+elseif(GRAPHIC_BACKEND STREQUAL "d3d11")
+    add_compile_definitions(SOKOL_D3D11)
+elseif(GRAPHIC_BACKEND STREQUAL "metal")
+    add_compile_definitions(SOKOL_METAL)
+elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
+    add_compile_definitions(SOKOL_VULKAN)
+endif()
 
-include_directories(renders)
-
-include_directories(libs)
-include_directories(libs/luabridge3)
-include_directories(libs/json)
-
-include_directories(libs/sokol)
-include_directories(libs/lua)
-include_directories(libs/stb)
-include_directories(libs/nanosvg)
-include_directories(libs/soloud/include)
-include_directories(libs/tinyobjloader)
-include_directories(libs/tinygltf)
-include_directories(libs/tinyxml2)
-include_directories(libs/box2d/include)
-include_directories(libs/joltphysics)
-include_directories(libs/harfbuzz)
-include_directories(libs/sheenbidi/Headers)
+add_compile_definitions(WITH_MINIAUDIO)
 
 add_subdirectory(libs/sokol)
 add_subdirectory(libs/lua)
@@ -705,23 +680,17 @@ add_subdirectory(libs/joltphysics)
 add_subdirectory(libs/harfbuzz)
 add_subdirectory(libs/sheenbidi)
 
-if(DEFINED NO_LUA_INIT)
-    add_definitions("-DNO_LUA_INIT=${NO_LUA_INIT}")
-    unset(NO_LUA_INIT CACHE)
-endif()
-if(DEFINED NO_CPP_INIT)
-    add_definitions("-DNO_CPP_INIT=${NO_CPP_INIT}")
-    unset(NO_CPP_INIT CACHE)
-endif()
-
-#add_definitions("-DPROJECT_ROOT=\"${PROJECT_ROOT}\"")
-
-set(DORIAX_SRCS
+set(ENGINE_CORE_SRCS
     core/Engine.cpp
     core/Input.cpp
     core/Log.cpp
     core/Scene.cpp
     core/System.cpp
+    core/Profiler.h
+    core/Profiler.cpp
+)
+
+set(ENGINE_ACTION_SRCS
     core/action/Action.cpp
     core/action/AlphaAction.cpp
     core/action/Animation.cpp
@@ -736,18 +705,37 @@ set(DORIAX_SRCS
     core/action/keyframe/RotateTracks.cpp
     core/action/keyframe/ScaleTracks.cpp
     core/action/keyframe/TranslateTracks.cpp
+)
+
+set(ENGINE_BUFFER_SRCS
     core/buffer/Attribute.cpp
     core/buffer/Buffer.cpp
     core/buffer/ExternalBuffer.cpp
     core/buffer/IndexBuffer.cpp
     core/buffer/InterleavedBuffer.cpp
+)
+
+set(ENGINE_ECS_SRCS
     core/ecs/ComponentManager.cpp
+    core/manager/BundleManager.cpp
+    core/manager/SceneManager.cpp
+    core/pool/FontPool.cpp
+    core/pool/ShaderPool.cpp
+    core/pool/SoundPool.cpp
+    core/pool/TextureDataPool.cpp
+    core/pool/TexturePool.cpp
+    core/pool/ModelPool.cpp
+    core/registry/EntityRegistry.cpp
+)
+
+set(ENGINE_IO_SRCS
     core/io/Data.cpp
     core/io/File.cpp
     core/io/FileData.cpp
-    core/manager/BundleManager.cpp
-    core/manager/SceneManager.cpp
     core/io/UserSettings.cpp
+)
+
+set(ENGINE_MATH_SRCS
     core/math/AABB.cpp
     core/math/Matrix3.cpp
     core/math/Matrix4.cpp
@@ -760,6 +748,9 @@ set(DORIAX_SRCS
     core/math/Vector2.cpp
     core/math/Vector3.cpp
     core/math/Vector4.cpp
+)
+
+set(ENGINE_OBJECT_SRCS
     core/object/Bone.cpp
     core/object/Camera.cpp
     core/object/EntityHandle.cpp
@@ -799,13 +790,9 @@ set(DORIAX_SRCS
     core/object/ui/Text.cpp
     core/object/ui/TextEdit.cpp
     core/object/ui/UILayout.cpp
-    core/pool/FontPool.cpp
-    core/pool/ShaderPool.cpp
-    core/pool/SoundPool.cpp
-    core/pool/TextureDataPool.cpp
-    core/pool/TexturePool.cpp
-    core/pool/ModelPool.cpp
-    core/registry/EntityRegistry.cpp
+)
+
+set(ENGINE_RENDER_SRCS
     core/render/BufferRender.cpp
     core/render/CameraRender.cpp
     core/render/FramebufferRender.cpp
@@ -813,6 +800,23 @@ set(DORIAX_SRCS
     core/render/ShaderRender.cpp
     core/render/SystemRender.cpp
     core/render/TextureRender.cpp
+    core/shader/ShaderData.cpp
+    core/shader/ShaderDataSerializer.cpp
+    core/texture/Framebuffer.cpp
+    core/texture/IBLEnvironment.cpp
+    core/texture/Texture.cpp
+    core/texture/TextureData.cpp
+    renders/sokol/SokolBuffer.cpp
+    renders/sokol/SokolTexture.cpp
+    renders/sokol/SokolSystem.cpp
+    renders/sokol/SokolCamera.cpp
+    renders/sokol/SokolObject.cpp
+    renders/sokol/SokolShader.cpp
+    renders/sokol/SokolCmdQueue.cpp
+    renders/sokol/SokolFramebuffer.cpp
+)
+
+set(ENGINE_SCRIPT_SRCS
     core/script/LuaBinding.cpp
     core/script/LuaFunctionBase.cpp
     core/script/LuaScript.cpp
@@ -826,18 +830,15 @@ set(DORIAX_SRCS
     core/script/binding/ObjectClassesLua.cpp
     core/script/binding/ThreadClassesLua.cpp
     core/script/binding/UtilClassesLua.cpp
-    core/shader/ShaderData.cpp
-    core/shader/ShaderDataSerializer.cpp
+)
+
+set(ENGINE_SUBSYSTEM_SRCS
     core/subsystem/ActionSystem.cpp
     core/subsystem/AudioSystem.cpp
     core/subsystem/MeshSystem.cpp
     core/subsystem/PhysicsSystem.cpp
     core/subsystem/RenderSystem.cpp
     core/subsystem/UISystem.cpp
-    core/texture/Framebuffer.cpp
-    core/texture/IBLEnvironment.cpp
-    core/texture/Texture.cpp
-    core/texture/TextureData.cpp
     core/thread/ResourceProgress.cpp
     core/thread/ThreadPoolManager.cpp
     core/util/Angle.cpp
@@ -847,19 +848,19 @@ set(DORIAX_SRCS
     core/util/StringUtils.cpp
     core/util/UniqueToken.cpp
     core/util/XMLUtils.cpp
-	core/Profiler.h
-	core/Profiler.cpp
 )
 
-set(RENDER_SOKOL_SRC
-    renders/sokol/SokolBuffer.cpp
-    renders/sokol/SokolTexture.cpp
-    renders/sokol/SokolSystem.cpp
-    renders/sokol/SokolCamera.cpp
-    renders/sokol/SokolObject.cpp
-    renders/sokol/SokolShader.cpp
-    renders/sokol/SokolCmdQueue.cpp
-    renders/sokol/SokolFramebuffer.cpp
+set(DORIAX_SRCS
+    ${ENGINE_CORE_SRCS}
+    ${ENGINE_ACTION_SRCS}
+    ${ENGINE_BUFFER_SRCS}
+    ${ENGINE_ECS_SRCS}
+    ${ENGINE_IO_SRCS}
+    ${ENGINE_MATH_SRCS}
+    ${ENGINE_OBJECT_SRCS}
+    ${ENGINE_RENDER_SRCS}
+    ${ENGINE_SCRIPT_SRCS}
+    ${ENGINE_SUBSYSTEM_SRCS}
 )
 
 add_library(
@@ -867,9 +868,57 @@ add_library(
 
     ${DORIAX_LIB_TYPE}
 
-    ${RENDER_SOKOL_SRC}
     ${DORIAX_SRCS}
 )
+
+target_include_directories(doriax PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/action
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/buffer
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/component
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/io
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/math
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/object
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/sound
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/environment
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/physics
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/registry
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/render
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/script
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/shader
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/subsystem
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/texture
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/util
+    ${CMAKE_CURRENT_SOURCE_DIR}/renders
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/luabridge3
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/json
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/sokol
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/lua
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/nanosvg
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/soloud/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinyobjloader
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinygltf
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinyxml2
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/box2d/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/joltphysics
+)
+
+if(DEFINED NO_LUA_INIT)
+    target_compile_definitions(doriax PRIVATE "NO_LUA_INIT=${NO_LUA_INIT}")
+    unset(NO_LUA_INIT CACHE)
+endif()
+if(DEFINED NO_CPP_INIT)
+    target_compile_definitions(doriax PRIVATE "NO_CPP_INIT=${NO_CPP_INIT}")
+    unset(NO_CPP_INIT CACHE)
+endif()
 
 find_package(Threads REQUIRED)
 target_link_libraries(doriax PRIVATE Threads::Threads)

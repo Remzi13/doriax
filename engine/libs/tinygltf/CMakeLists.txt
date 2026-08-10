@@ -1,15 +1,13 @@
-include_directories ("${CMAKE_CURRENT_SOURCE_DIR}/../stb")
-
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-
 add_library(
-
     tinygltf
-
     STATIC
-
     tiny_gltf.cc
+)
 
+target_include_directories(tinygltf PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/../json
 )
 
 find_package(Threads REQUIRED)
