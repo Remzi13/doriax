@@ -41,6 +41,7 @@ if(APPLE)
 endif()
 
 set(DORIAX_SHARED ON)
+set(GRAPHIC_BACKEND "glcore")
 
 option(DORIAX_BUILD_EDITOR "Build the editor executable" ON)
 option(DORIAX_BUILD_ENGINE "Build the engine library" ON)
@@ -62,45 +63,9 @@ if(TRACY_ENABLE)
 endif()
 
 if(NOT API_BACKEND)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        set(API_BACKEND "linux")
-    elseif(WIN32)
-        set(API_BACKEND "win")
-    elseif(APPLE)
-        set(API_BACKEND "mac")
-    else()
-        message(FATAL_ERROR "No native editor backend for ${CMAKE_SYSTEM_NAME} (expected Linux, Windows, or macOS)")
-    endif()
+    set(API_BACKEND "glfw")
 endif()
 message(STATUS "API backend is set to ${API_BACKEND}")
-
-# The native Linux and Windows backends render through Vulkan or OpenGL; macOS
-# is tied to Metal.
-if(API_BACKEND STREQUAL "linux" OR API_BACKEND STREQUAL "win")
-    if(NOT GRAPHIC_BACKEND)
-        if(API_BACKEND STREQUAL "win")
-            set(GRAPHIC_BACKEND "glcore")
-        else()
-            set(GRAPHIC_BACKEND "vulkan")
-        endif()
-    elseif(NOT GRAPHIC_BACKEND STREQUAL "vulkan" AND NOT GRAPHIC_BACKEND STREQUAL "glcore")
-        message(FATAL_ERROR "API_BACKEND=${API_BACKEND} supports GRAPHIC_BACKEND vulkan or glcore")
-    endif()
-else()
-    set(GRAPHIC_BACKEND "metal")
-endif()
-message(STATUS "Graphic backend is set to ${GRAPHIC_BACKEND}")
-
-# Only macOS keeps the menu bar outside the window, so it is the one platform
-# where a native menu is worth its own implementation. ImGui draws it elsewhere.
-if(NOT DEFINED NATIVE_MENU)
-    if(API_BACKEND STREQUAL "mac")
-        set(NATIVE_MENU ON)
-    else()
-        set(NATIVE_MENU OFF)
-    endif()
-endif()
-message(STATUS "Native menu is set to ${NATIVE_MENU}")
 
 if(POLICY CMP0072)
   cmake_policy(SET CMP0072 NEW) # NEW for GLVND, OLD for legacy OpenGL
@@ -123,11 +88,13 @@ if(WIN32)
     if(MINGW)
         set(MINGW_STATIC_FLAGS -static -static-libgcc -static-libstdc++)
     endif()
+
+    set(CMAKE_PREFIX_PATH "$ENV{ProgramFiles}/GLFW" ${CMAKE_PREFIX_PATH})
+    set(CMAKE_PREFIX_PATH "$ENV{ProgramFiles\(X86\)}/GLFW" ${CMAKE_PREFIX_PATH})
 endif()
 
 set(IMGUI_DIR libs/imgui)
 set(EDITOR_DIR editor)
-set(DORIAX_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 
 # Icon and version resource for one executable. Each target needs its own so
 # OriginalFilename matches the file on disk. Added after Defender quarantined
@@ -164,6 +131,8 @@ if(WIN32)
     )
 endif()
 
+# Find OpenGL
+find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # The AI HTTP client uses the native WinHTTP backend on Windows (no external
@@ -179,100 +148,37 @@ endif()
 set(BACKEND_SOURCES)
 set(BACKEND_LIBS)
 
-if(API_BACKEND STREQUAL "linux")
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        message(FATAL_ERROR "API_BACKEND=linux is only available on Linux")
+if(API_BACKEND STREQUAL "glfw")
+    find_package(glfw3 REQUIRED)
+
+    if(NOT DEFINED GLFW_LIBRARIES)
+        set(GLFW_LIBRARIES glfw)
     endif()
-    find_package(X11 REQUIRED COMPONENTS Xrandr)
 
     list(APPEND BACKEND_SOURCES
-        ${EDITOR_DIR}/backend/BackendLinux.cpp
-        ${DORIAX_ROOT}/platform/linux/WindowLinux.cpp
-        ${DORIAX_ROOT}/platform/linux/GamepadDB.cpp
-    )
-    list(APPEND BACKEND_LIBS X11::X11 X11::Xrandr)
-
-    if(GRAPHIC_BACKEND STREQUAL "vulkan")
-        find_package(Vulkan REQUIRED)
-        list(APPEND BACKEND_LIBS Vulkan::Vulkan)
-        add_definitions("-DVK_USE_PLATFORM_XLIB_KHR")
-    else()
-        find_package(OpenGL REQUIRED)
-    endif()
-elseif(API_BACKEND STREQUAL "win")
-    if(NOT WIN32)
-        message(FATAL_ERROR "API_BACKEND=win is only available on Windows")
-    endif()
-    list(APPEND BACKEND_SOURCES
-        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
-        ${EDITOR_DIR}/backend/BackendWin.cpp
-        ${DORIAX_ROOT}/platform/win/WindowWin.cpp
-        ${DORIAX_ROOT}/platform/win/GamepadWin.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+        ${EDITOR_DIR}/backend/BackendGLFW.cpp
     )
 
     list(APPEND BACKEND_LIBS
-        user32
-        gdi32
-        dwmapi
-        shell32
+        ${GLFW_LIBRARIES}
     )
+endif()
 
-    if(GRAPHIC_BACKEND STREQUAL "vulkan")
-        find_package(Vulkan REQUIRED)
-        list(APPEND BACKEND_LIBS Vulkan::Vulkan)
-        add_definitions("-DVK_USE_PLATFORM_WIN32_KHR")
-    else()
-        list(APPEND BACKEND_LIBS opengl32)
-    endif()
-elseif(API_BACKEND STREQUAL "mac")
-    if(NOT APPLE)
-        message(FATAL_ERROR "API_BACKEND=mac is only available on macOS")
-    endif()
+if(API_BACKEND STREQUAL "sdl")
+    find_package(SDL2 REQUIRED)
 
     list(APPEND BACKEND_SOURCES
-        ${IMGUI_DIR}/backends/imgui_impl_osx.mm
-        ${EDITOR_DIR}/backend/BackendMac.mm
-        ${DORIAX_ROOT}/platform/mac/WindowMac.mm
-        ${DORIAX_ROOT}/platform/apple/DoriaxGameController.mm
+        ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
+        ${EDITOR_DIR}/backend/BackendSDL.cpp
     )
 
     list(APPEND BACKEND_LIBS
-        "-framework AppKit"
-        "-framework CoreGraphics"
-        "-framework GameController"
-        "-framework Metal"
-        "-framework MetalKit"
-        "-framework QuartzCore"
+        ${SDL2_LIBRARIES}
     )
-
-    set_source_files_properties(
-        ${IMGUI_DIR}/backends/imgui_impl_osx.mm
-        ${IMGUI_DIR}/backends/imgui_impl_metal.mm
-        ${EDITOR_DIR}/backend/BackendMac.mm
-        ${DORIAX_ROOT}/platform/mac/WindowMac.mm
-        ${EDITOR_DIR}/util/GraphicUtils.cpp
-        ${DORIAX_ROOT}/platform/apple/DoriaxGameController.mm
-        PROPERTIES
-        COMPILE_FLAGS "-fobjc-arc"
-    )
-    set_source_files_properties(
-        ${EDITOR_DIR}/util/GraphicUtils.cpp
-        PROPERTIES LANGUAGE OBJCXX
-    )
-else()
-    message(FATAL_ERROR "Unknown API_BACKEND '${API_BACKEND}' (expected linux, win, or mac)")
 endif()
 
-# The native backends share the frame loop and pick a renderer by GRAPHIC_BACKEND
-if(API_BACKEND STREQUAL "linux" OR API_BACKEND STREQUAL "win")
-    list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/EditorFrame.cpp)
-    if(GRAPHIC_BACKEND STREQUAL "vulkan")
-        list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/backend/renderer/RendererVulkan.cpp)
-    else()
-        list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/backend/renderer/RendererGL.cpp)
-    endif()
-endif()
-
+set(DORIAX_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 set(SHADERCOMPILER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/shadercompiler)
 
 add_compile_definitions(
@@ -330,12 +236,6 @@ if(DORIAX_BUILD_ENGINE)
     add_subdirectory(${DORIAX_ROOT})
 endif()
 
-# The engine compiles sokol's Vulkan backend, so it needs the headers and the
-# loader itself. Only the standalone engine build sets this up on its own.
-if(GRAPHIC_BACKEND STREQUAL "vulkan")
-    target_link_libraries(doriax PUBLIC Vulkan::Vulkan)
-endif()
-
 if(DORIAX_BUILD_SHADERCOMPILER)
     add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
 endif()
@@ -350,6 +250,7 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
 add_custom_target(generate_shaders DEPENDS ${SHADERS_HEADER})
@@ -391,7 +292,6 @@ set(EDITOR_AI_SOURCES
 
 set(EDITOR_UTIL_SOURCES
     ${EDITOR_DIR}/util/ShaderHeaderBuilder.cpp
-    ${EDITOR_DIR}/util/BidiText.cpp
     ${EDITOR_DIR}/util/GraphicUtils.cpp
     ${EDITOR_DIR}/util/CameraTextureLink.cpp
     ${EDITOR_DIR}/util/Clipboard.cpp
@@ -421,7 +321,6 @@ set(EDITOR_WINDOW_SOURCES
     ${EDITOR_DIR}/window/dialog/ComponentAddDialog.cpp
     ${EDITOR_DIR}/window/dialog/ProjectSaveDialog.cpp
     ${EDITOR_DIR}/window/dialog/ScriptCreateDialog.cpp
-    ${EDITOR_DIR}/window/dialog/ShaderForkDialog.cpp
     ${EDITOR_DIR}/window/dialog/TextureSlicerToolDialog.cpp
     ${EDITOR_DIR}/window/dialog/ExportWindow.cpp
     ${EDITOR_DIR}/window/dialog/ProjectSettingsWindow.cpp
