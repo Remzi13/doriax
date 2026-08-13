@@ -1,19 +1,11 @@
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 
-function(doriax_set_default_option variable_name default_value)
-    if(NOT DEFINED ${variable_name})
-        set(${variable_name} ${default_value} PARENT_SCOPE)
-    endif()
-endfunction()
-
 # =============================================================
 # STANDALONE PROJECT SETUP
 # Only runs when this file is used as the top-level build
 # (i.e. building doriax-project outside the editor).
 # =============================================================
-option(DORIAX_BUILD_STANDALONE "Build the standalone executable when this file is the top-level project" ON)
-
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALONE)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     cmake_minimum_required(VERSION 3.15)
 
     if(NOT DEFINED APP_NAME)
@@ -44,7 +36,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
     # Project-wide runtime settings are injected here by the editor Exporter.
     # Standalone engine builds keep the defaults declared by each platform.
     # @DORIAX_PROJECT_SETTINGS@
-    doriax_set_default_option(DORIAX_VSYNC_ENABLED ON)
+    if(NOT DEFINED DORIAX_VSYNC_ENABLED)
+        set(DORIAX_VSYNC_ENABLED ON)
+    endif()
     if(DORIAX_VSYNC_ENABLED)
         set(DORIAX_VSYNC_ENABLED_VALUE 1)
     else()
@@ -52,14 +46,26 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
     endif()
     add_definitions("-DDORIAX_VSYNC_ENABLED=${DORIAX_VSYNC_ENABLED_VALUE}")
 
-    doriax_set_default_option(DORIAX_WINDOW_WIDTH 960)
-    doriax_set_default_option(DORIAX_WINDOW_HEIGHT 540)
+    if(NOT DEFINED DORIAX_WINDOW_WIDTH)
+        set(DORIAX_WINDOW_WIDTH 960)
+    endif()
+    if(NOT DEFINED DORIAX_WINDOW_HEIGHT)
+        set(DORIAX_WINDOW_HEIGHT 540)
+    endif()
     # 0 = windowed, 1 = maximized, 2 = fullscreen
-    doriax_set_default_option(DORIAX_WINDOW_MODE 0)
-    doriax_set_default_option(DORIAX_WINDOW_RESIZABLE ON)
-    doriax_set_default_option(DORIAX_WINDOW_TITLE "Doriax")
+    if(NOT DEFINED DORIAX_WINDOW_MODE)
+        set(DORIAX_WINDOW_MODE 0)
+    endif()
+    if(NOT DEFINED DORIAX_WINDOW_RESIZABLE)
+        set(DORIAX_WINDOW_RESIZABLE ON)
+    endif()
+    if(NOT DEFINED DORIAX_WINDOW_TITLE)
+        set(DORIAX_WINDOW_TITLE "Doriax")
+    endif()
     # ON only when the editor export generated project/app_icon.h (+ .ico/.rc)
-    doriax_set_default_option(DORIAX_WINDOW_ICON OFF)
+    if(NOT DEFINED DORIAX_WINDOW_ICON)
+        set(DORIAX_WINDOW_ICON OFF)
+    endif()
     if(DORIAX_WINDOW_RESIZABLE)
         set(DORIAX_WINDOW_RESIZABLE_VALUE 1)
     else()
@@ -89,8 +95,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
             set(GRAPHIC_BACKEND "gles3")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-            set(GRAPHIC_BACKEND "d3d11")
-            #set(GRAPHIC_BACKEND "glcore")
+            set(GRAPHIC_BACKEND "glcore")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             set(GRAPHIC_BACKEND "glcore")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
@@ -112,35 +117,21 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
             set(APP_BACKEND "android")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-            set(APP_BACKEND "sokol")
+            set(APP_BACKEND "win")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            if(GRAPHIC_BACKEND STREQUAL "vulkan")
-                set(APP_BACKEND "sokol") # GLFW platform creates a GL context
-            else()
-                #set(APP_BACKEND "sokol")
-                set(APP_BACKEND "glfw")
-            endif()
+            set(APP_BACKEND "linux")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-            #set(APP_BACKEND "sokol")
-            set(APP_BACKEND "glfw")
+            set(APP_BACKEND "linux")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-            if(CMAKE_GENERATOR STREQUAL "Xcode")
-                set(APP_BACKEND "apple")
-            else()
-                set(APP_BACKEND "sokol")
-                #set(APP_BACKEND "glfw")
-            endif()
+            set(APP_BACKEND "apple")
         elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
             set(APP_BACKEND "apple")
         else()
             message(FATAL_ERROR "APP_BACKEND is not set")
         endif()
     endif()
-    if((GRAPHIC_BACKEND STREQUAL "vulkan") AND (APP_BACKEND STREQUAL "glfw"))
-        message(FATAL_ERROR "GRAPHIC_BACKEND=vulkan requires APP_BACKEND=sokol (the GLFW platform creates a GL context)")
-    endif()
     if((NOT DORIAX_VSYNC_ENABLED) AND (CMAKE_SYSTEM_NAME STREQUAL "Darwin") AND
-       ((APP_BACKEND STREQUAL "sokol" AND GRAPHIC_BACKEND STREQUAL "metal") OR APP_BACKEND STREQUAL "apple"))
+       (APP_BACKEND STREQUAL "apple"))
         message(WARNING "VSync off is not supported by the macOS Metal application backend; this build will remain synchronized")
     endif()
     message(STATUS "Application backend is set to ${APP_BACKEND}")
@@ -155,10 +146,34 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
     set(PLATFORM_RESOURCES)
     set(PLATFORM_PROPERTIES)
     set(PLATFORM_OPTIONS)
-    add_compile_definitions(TRACY_ENABLE)
-    
 
     find_package(Threads REQUIRED)
+
+    # FindVulkan reads the VULKAN_SDK environment variable the SDK installer
+    # sets. A macro, not a function, so Vulkan_FOUND lands in the caller.
+    macro(doriax_find_vulkan backendOption)
+        # sokol_gfx binds every resource through VK_EXT_descriptor_buffer, which
+        # MoltenVK does not implement, so the build only fails at device selection
+        if(APPLE)
+            message(WARNING "${backendOption}=vulkan runs on MoltenVK here, which does not implement VK_EXT_descriptor_buffer: this build will fail at startup unless the driver provides it. ${backendOption}=metal is the working macOS backend.")
+        endif()
+
+        # An app started from the Dock inherits no shell environment, so on macOS
+        # the SDK is also looked for where its installer unpacks it
+        if(APPLE AND NOT DEFINED ENV{VULKAN_SDK})
+            file(GLOB doriaxVulkanSdkDirs "$ENV{HOME}/VulkanSDK/*/macOS")
+            if(doriaxVulkanSdkDirs)
+                list(SORT doriaxVulkanSdkDirs)
+                list(POP_BACK doriaxVulkanSdkDirs doriaxVulkanSdkNewest)
+                set(ENV{VULKAN_SDK} "${doriaxVulkanSdkNewest}")
+                message(STATUS "Using the Vulkan SDK at ${doriaxVulkanSdkNewest}")
+            endif()
+        endif()
+        find_package(Vulkan QUIET)
+        if(NOT Vulkan_FOUND)
+            message(FATAL_ERROR "${backendOption}=vulkan needs the Vulkan SDK (https://vulkan.lunarg.com/sdk/home), and VULKAN_SDK is not set here. If it is installed outside the default location, restart the shell or editor this build was started from with VULKAN_SDK in its environment: Windows only gives the variable to processes started after the installer ran. Otherwise use ${backendOption}=glcore, or metal on macOS.")
+        endif()
+    endmacro()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         add_definitions("-DDORIAX_WEB")
@@ -275,18 +290,19 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
     endif()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        add_definitions("-DDORIAX_SOKOL")
+        add_definitions("-DDORIAX_WIN")
 
+        # The native Win32 backend creates a WGL context, a Vulkan surface and
+        # swapchain, or a D3D11 device and swapchain.
         if(GRAPHIC_BACKEND STREQUAL "glcore")
             add_definitions("-DSOKOL_GLCORE")
-        elseif(GRAPHIC_BACKEND STREQUAL "d3d11")
-            add_definitions("-DSOKOL_D3D11")
         elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
             add_definitions("-DSOKOL_VULKAN")
-            if(DEFINED ENV{VULKAN_SDK})
-                include_directories("$ENV{VULKAN_SDK}/Include")
-                link_directories("$ENV{VULKAN_SDK}/Lib")
-            endif()
+            add_definitions("-DVK_USE_PLATFORM_WIN32_KHR")
+        elseif(GRAPHIC_BACKEND STREQUAL "d3d11")
+            add_definitions("-DSOKOL_D3D11")
+        else()
+            message(FATAL_ERROR "APP_BACKEND=win supports GRAPHIC_BACKEND glcore, vulkan or d3d11 (got '${GRAPHIC_BACKEND}')")
         endif()
 
         add_definitions("-DWITH_MINIAUDIO")
@@ -300,12 +316,47 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
 
         set(PLATFORM_EXEC_FLAGS WIN32)
 
-        set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/sokol)
+        if(MSVC)
+            # The windowed subsystem above enters at WinMain, but the backend's
+            # entry point is main() (platform/win/main.cpp). MinGW handles this
+            # on its own with -mwindows.
+            list(APPEND PLATFORM_PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup")
+        endif()
+
+        set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/win)
 
         list(APPEND PLATFORM_SOURCE
-            ${PLATFORM_ROOT}/DoriaxSokol.cpp
+            ${PLATFORM_ROOT}/DoriaxWin.cpp
+            ${PLATFORM_ROOT}/WindowWin.cpp
+            ${PLATFORM_ROOT}/SystemWin.cpp
+            ${PLATFORM_ROOT}/WinInputRouter.cpp
+            ${PLATFORM_ROOT}/GamepadWin.cpp
             ${PLATFORM_ROOT}/main.cpp
         )
+
+        list(APPEND PLATFORM_LIBS
+            user32
+            gdi32
+            shell32
+        )
+
+        if(GRAPHIC_BACKEND STREQUAL "vulkan")
+            # Device and swapchain are shared with the other desktops
+            include_directories(${DORIAX_ROOT}/platform/common)
+            list(APPEND PLATFORM_SOURCE
+                ${DORIAX_ROOT}/platform/common/VulkanContext.cpp
+            )
+            doriax_find_vulkan("GRAPHIC_BACKEND")
+            list(APPEND PLATFORM_LIBS Vulkan::Vulkan)
+        elseif(GRAPHIC_BACKEND STREQUAL "d3d11")
+            # d3d11 and dxgi ship with the Windows SDK, nothing to find
+            list(APPEND PLATFORM_SOURCE
+                ${PLATFORM_ROOT}/D3D11Context.cpp
+            )
+            list(APPEND PLATFORM_LIBS d3d11 dxgi)
+        else()
+            list(APPEND PLATFORM_LIBS opengl32)
+        endif()
 
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             list(APPEND PLATFORM_LIBS
@@ -315,10 +366,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
     endif()
 
     if((CMAKE_SYSTEM_NAME STREQUAL "Linux") OR (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD"))
+        # The native X11 backend creates a GLX context or a Vulkan surface and
+        # swapchain.
         if(GRAPHIC_BACKEND STREQUAL "glcore")
             add_definitions("-DSOKOL_GLCORE")
         elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
             add_definitions("-DSOKOL_VULKAN")
+            add_definitions("-DVK_USE_PLATFORM_XLIB_KHR")
+        else()
+            message(FATAL_ERROR "APP_BACKEND=linux supports GRAPHIC_BACKEND glcore or vulkan (got '${GRAPHIC_BACKEND}')")
         endif()
 
         add_definitions("-DWITH_MINIAUDIO")
@@ -330,36 +386,54 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
             set(LUA_DEST_DIR ${CMAKE_BINARY_DIR}/lua)
         endif()
 
-        if(APP_BACKEND STREQUAL "glfw")
-            add_definitions("-DDORIAX_GLFW")
+        add_definitions("-DDORIAX_LINUX")
 
-            set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/glfw)
+        find_package(X11 REQUIRED)
 
+        set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/linux)
+
+        list(APPEND PLATFORM_SOURCE
+            ${PLATFORM_ROOT}/DoriaxLinux.cpp
+            ${PLATFORM_ROOT}/WindowLinux.cpp
+            ${PLATFORM_ROOT}/SystemLinux.cpp
+            ${PLATFORM_ROOT}/LinuxInputRouter.cpp
+            ${PLATFORM_ROOT}/GamepadLinux.cpp
+            ${PLATFORM_ROOT}/GamepadDB.cpp
+            ${PLATFORM_ROOT}/main.cpp
+        )
+
+        # GamepadDB parses the community mapping database in common/
+        include_directories(${DORIAX_ROOT}/platform/common)
+
+        list(APPEND PLATFORM_LIBS
+            X11::X11 dl m
+        )
+
+        if(GRAPHIC_BACKEND STREQUAL "vulkan")
+            # The device and swapchain are the same on every desktop; only the
+            # surface differs, so the backend passes that in.
             list(APPEND PLATFORM_SOURCE
-                ${PLATFORM_ROOT}/DoriaxGLFW.cpp
-                ${PLATFORM_ROOT}/main.cpp
+                ${DORIAX_ROOT}/platform/common/VulkanContext.cpp
             )
-
-            list(APPEND PLATFORM_LIBS
-                GL dl m glfw
-            )
+            doriax_find_vulkan("GRAPHIC_BACKEND")
+            list(APPEND PLATFORM_LIBS Vulkan::Vulkan)
         else()
-            add_definitions("-DDORIAX_SOKOL")
-
-            set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/sokol)
-
-            list(APPEND PLATFORM_SOURCE
-                ${PLATFORM_ROOT}/DoriaxSokol.cpp
-                ${PLATFORM_ROOT}/main.cpp
-            )
+            list(APPEND PLATFORM_LIBS GL)
         endif()
     endif()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        # The native Cocoa backend creates a GL context, a Metal device, or a
+        # Vulkan surface and swapchain over a CAMetalLayer.
         if(GRAPHIC_BACKEND STREQUAL "glcore")
             add_definitions("-DSOKOL_GLCORE")
         elseif(GRAPHIC_BACKEND STREQUAL "metal")
             add_definitions("-DSOKOL_METAL")
+        elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
+            add_definitions("-DSOKOL_VULKAN")
+            add_definitions("-DVK_USE_PLATFORM_METAL_EXT")
+        else()
+            message(FATAL_ERROR "APP_BACKEND=apple supports GRAPHIC_BACKEND glcore, metal or vulkan (got '${GRAPHIC_BACKEND}')")
         endif()
 
         add_definitions("-DWITH_MINIAUDIO")
@@ -368,23 +442,30 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fobjc-arc")
         set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15")
 
-        if(APP_BACKEND STREQUAL "apple")
+        # Only the Xcode generator assembles the real .app that the storyboard
+        # entry point in platform/apple needs, shared with iOS. Every other
+        # generator builds a bare executable, on the backend in platform/mac.
+        if(GRAPHIC_BACKEND STREQUAL "metal" AND CMAKE_GENERATOR STREQUAL "Xcode")
             add_definitions("-DDORIAX_APPLE")
 
             set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/apple)
 
             set(APP_BUNDLE_IDENTIFIER "org.doriaxengine.doriax")
-
             set(PLATFORM_EXEC_FLAGS MACOSX_BUNDLE)
 
             include_directories(/System/Library/Frameworks)
 
+            # The drawable and the input translation come from platform/mac
+            include_directories(${DORIAX_ROOT}/platform/mac)
+
             list(APPEND PLATFORM_SOURCE
+                ${DORIAX_ROOT}/platform/mac/MacInputRouter.mm
+                ${DORIAX_ROOT}/platform/mac/MacViewMetal.mm
+                ${PLATFORM_ROOT}/macos/EngineView.h
+                ${PLATFORM_ROOT}/macos/EngineView.mm
                 ${PLATFORM_ROOT}/macos/main.m
                 ${PLATFORM_ROOT}/macos/AppDelegate.h
                 ${PLATFORM_ROOT}/macos/AppDelegate.m
-                ${PLATFORM_ROOT}/macos/EngineView.h
-                ${PLATFORM_ROOT}/macos/EngineView.mm
                 ${PLATFORM_ROOT}/macos/ViewController.h
                 ${PLATFORM_ROOT}/macos/ViewController.m
                 ${PLATFORM_ROOT}/Renderer.h
@@ -399,16 +480,21 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
                 ${PLATFORM_ROOT}/macos/Main.storyboard
             )
 
-            # GameController framework for gamepad input (DoriaxGameController.mm)
-            list(APPEND PLATFORM_LIBS
-                "-framework GameController"
-            )
-
             list(APPEND PLATFORM_PROPERTIES
                 MACOSX_BUNDLE_INFO_PLIST "${DORIAX_ROOT}/workspaces/xcode/macos/Info.plist"
                 XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
             )
+
+            list(APPEND PLATFORM_LIBS
+                "-framework Cocoa"
+                "-framework Metal"
+                "-framework MetalKit"
+                "-framework QuartzCore"
+                "-framework GameController"
+            )
         else()
+            set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/mac)
+
             if(EXISTS "${PROJECT_ROOT}/assets")
                 set(ASSETS_DEST_DIR ${CMAKE_BINARY_DIR}/assets)
             endif()
@@ -416,29 +502,46 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND DORIAX_BUILD_STANDALON
                 set(LUA_DEST_DIR ${CMAKE_BINARY_DIR}/lua)
             endif()
 
-            if(APP_BACKEND STREQUAL "glfw")
-                add_definitions("-DDORIAX_GLFW")
+            # Gamepads come from the same GameController code iOS and the editor use
+            include_directories(${DORIAX_ROOT}/platform/apple)
 
-                set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/glfw)
+            list(APPEND PLATFORM_SOURCE
+                ${PLATFORM_ROOT}/DoriaxMac.h
+                ${PLATFORM_ROOT}/DoriaxMac.mm
+                ${PLATFORM_ROOT}/WindowMac.mm
+                ${PLATFORM_ROOT}/SystemMac.mm
+                ${PLATFORM_ROOT}/MacInputRouter.mm
+                ${PLATFORM_ROOT}/main.mm
+                ${DORIAX_ROOT}/platform/apple/DoriaxGameController.mm
+            )
 
+            list(APPEND PLATFORM_LIBS
+                "-framework Cocoa"
+                "-framework QuartzCore"
+                "-framework GameController"
+            )
+
+            # MTKView has no GL or Vulkan drawable, so those get views of their own
+            if(GRAPHIC_BACKEND STREQUAL "glcore")
+                list(APPEND PLATFORM_SOURCE ${PLATFORM_ROOT}/MacViewGL.mm)
+                list(APPEND PLATFORM_LIBS "-framework OpenGL")
+            elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
+                # Device and swapchain are shared with the other desktops
+                include_directories(${DORIAX_ROOT}/platform/common)
                 list(APPEND PLATFORM_SOURCE
-                    ${PLATFORM_ROOT}/DoriaxGLFW.cpp
-                    ${PLATFORM_ROOT}/main.cpp
+                    ${PLATFORM_ROOT}/MacViewVulkan.mm
+                    ${DORIAX_ROOT}/platform/common/VulkanContext.cpp
                 )
-
-                list(APPEND PLATFORM_LIBS
-                    glfw
-                )
+                doriax_find_vulkan("GRAPHIC_BACKEND")
+                list(APPEND PLATFORM_LIBS Vulkan::Vulkan)
             else()
-                add_definitions("-DDORIAX_SOKOL")
-
-                set(PLATFORM_ROOT ${DORIAX_ROOT}/platform/sokol)
-
-                list(APPEND PLATFORM_SOURCE
-                    ${PLATFORM_ROOT}/DoriaxSokol.cpp
-                    ${PLATFORM_ROOT}/main.cpp
-                )
+                list(APPEND PLATFORM_SOURCE ${PLATFORM_ROOT}/MacViewMetal.mm)
+                list(APPEND PLATFORM_LIBS "-framework Metal" "-framework MetalKit")
             endif()
+
+            list(APPEND PLATFORM_PROPERTIES
+                XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
+            )
         endif()
     endif()
 
@@ -551,23 +654,48 @@ if(WIN32)
     endif()
 endif()
 
-if(NOT GRAPHIC_BACKEND)
-    set(GRAPHIC_BACKEND "glcore")
-endif()
+include_directories(shaders)
 
-if(GRAPHIC_BACKEND STREQUAL "glcore")
-    add_compile_definitions(SOKOL_GLCORE)
-elseif(GRAPHIC_BACKEND STREQUAL "gles3")
-    add_compile_definitions(SOKOL_GLES3)
-elseif(GRAPHIC_BACKEND STREQUAL "d3d11")
-    add_compile_definitions(SOKOL_D3D11)
-elseif(GRAPHIC_BACKEND STREQUAL "metal")
-    add_compile_definitions(SOKOL_METAL)
-elseif(GRAPHIC_BACKEND STREQUAL "vulkan")
-    add_compile_definitions(SOKOL_VULKAN)
-endif()
+include_directories(core)
+include_directories(core/action)
+include_directories(core/buffer)
+include_directories(core/component)
+include_directories(core/ecs)
+include_directories(core/io)
+include_directories(core/manager)
+include_directories(core/math)
+include_directories(core/object)
+include_directories(core/object/sound)
+include_directories(core/object/ui)
+include_directories(core/object/environment)
+include_directories(core/object/physics)
+include_directories(core/pool)
+include_directories(core/registry)
+include_directories(core/render)
+include_directories(core/script)
+include_directories(core/shader)
+include_directories(core/subsystem)
+include_directories(core/texture)
+include_directories(core/util)
 
-add_compile_definitions(WITH_MINIAUDIO)
+include_directories(renders)
+
+include_directories(libs)
+include_directories(libs/luabridge3)
+include_directories(libs/json)
+
+include_directories(libs/sokol)
+include_directories(libs/lua)
+include_directories(libs/stb)
+include_directories(libs/nanosvg)
+include_directories(libs/soloud/include)
+include_directories(libs/tinyobjloader)
+include_directories(libs/tinygltf)
+include_directories(libs/tinyxml2)
+include_directories(libs/box2d/include)
+include_directories(libs/joltphysics)
+include_directories(libs/harfbuzz)
+include_directories(libs/sheenbidi/Headers)
 
 add_subdirectory(libs/sokol)
 add_subdirectory(libs/lua)
@@ -578,18 +706,26 @@ add_subdirectory(libs/tinygltf)
 add_subdirectory(libs/tinyxml2)
 add_subdirectory(libs/box2d)
 add_subdirectory(libs/joltphysics)
+add_subdirectory(libs/harfbuzz)
+add_subdirectory(libs/sheenbidi)
 
-set(ENGINE_CORE_SRCS
+if(DEFINED NO_LUA_INIT)
+    add_definitions("-DNO_LUA_INIT=${NO_LUA_INIT}")
+    unset(NO_LUA_INIT CACHE)
+endif()
+if(DEFINED NO_CPP_INIT)
+    add_definitions("-DNO_CPP_INIT=${NO_CPP_INIT}")
+    unset(NO_CPP_INIT CACHE)
+endif()
+
+#add_definitions("-DPROJECT_ROOT=\"${PROJECT_ROOT}\"")
+
+set(DORIAX_SRCS
     core/Engine.cpp
     core/Input.cpp
     core/Log.cpp
     core/Scene.cpp
     core/System.cpp
-    core/Profiler.h
-    core/Profiler.cpp
-)
-
-set(ENGINE_ACTION_SRCS
     core/action/Action.cpp
     core/action/AlphaAction.cpp
     core/action/Animation.cpp
@@ -604,37 +740,18 @@ set(ENGINE_ACTION_SRCS
     core/action/keyframe/RotateTracks.cpp
     core/action/keyframe/ScaleTracks.cpp
     core/action/keyframe/TranslateTracks.cpp
-)
-
-set(ENGINE_BUFFER_SRCS
     core/buffer/Attribute.cpp
     core/buffer/Buffer.cpp
     core/buffer/ExternalBuffer.cpp
     core/buffer/IndexBuffer.cpp
     core/buffer/InterleavedBuffer.cpp
-)
-
-set(ENGINE_ECS_SRCS
     core/ecs/ComponentManager.cpp
-    core/manager/BundleManager.cpp
-    core/manager/SceneManager.cpp
-    core/pool/FontPool.cpp
-    core/pool/ShaderPool.cpp
-    core/pool/SoundPool.cpp
-    core/pool/TextureDataPool.cpp
-    core/pool/TexturePool.cpp
-    core/pool/ModelPool.cpp
-    core/registry/EntityRegistry.cpp
-)
-
-set(ENGINE_IO_SRCS
     core/io/Data.cpp
     core/io/File.cpp
     core/io/FileData.cpp
+    core/manager/BundleManager.cpp
+    core/manager/SceneManager.cpp
     core/io/UserSettings.cpp
-)
-
-set(ENGINE_MATH_SRCS
     core/math/AABB.cpp
     core/math/Matrix3.cpp
     core/math/Matrix4.cpp
@@ -647,9 +764,6 @@ set(ENGINE_MATH_SRCS
     core/math/Vector2.cpp
     core/math/Vector3.cpp
     core/math/Vector4.cpp
-)
-
-set(ENGINE_OBJECT_SRCS
     core/object/Bone.cpp
     core/object/Camera.cpp
     core/object/EntityHandle.cpp
@@ -658,6 +772,7 @@ set(ENGINE_OBJECT_SRCS
     core/object/Lines.cpp
     core/object/Mesh.cpp
     core/object/MeshPolygon.cpp
+    core/object/Mirror.cpp
     core/object/Model.cpp
     core/object/Object.cpp
     core/object/Occluder2D.cpp
@@ -688,9 +803,13 @@ set(ENGINE_OBJECT_SRCS
     core/object/ui/Text.cpp
     core/object/ui/TextEdit.cpp
     core/object/ui/UILayout.cpp
-)
-
-set(ENGINE_RENDER_SRCS
+    core/pool/FontPool.cpp
+    core/pool/ShaderPool.cpp
+    core/pool/SoundPool.cpp
+    core/pool/TextureDataPool.cpp
+    core/pool/TexturePool.cpp
+    core/pool/ModelPool.cpp
+    core/registry/EntityRegistry.cpp
     core/render/BufferRender.cpp
     core/render/CameraRender.cpp
     core/render/FramebufferRender.cpp
@@ -698,23 +817,6 @@ set(ENGINE_RENDER_SRCS
     core/render/ShaderRender.cpp
     core/render/SystemRender.cpp
     core/render/TextureRender.cpp
-    core/shader/ShaderData.cpp
-    core/shader/ShaderDataSerializer.cpp
-    core/texture/Framebuffer.cpp
-    core/texture/IBLEnvironment.cpp
-    core/texture/Texture.cpp
-    core/texture/TextureData.cpp
-    renders/sokol/SokolBuffer.cpp
-    renders/sokol/SokolTexture.cpp
-    renders/sokol/SokolSystem.cpp
-    renders/sokol/SokolCamera.cpp
-    renders/sokol/SokolObject.cpp
-    renders/sokol/SokolShader.cpp
-    renders/sokol/SokolCmdQueue.cpp
-    renders/sokol/SokolFramebuffer.cpp
-)
-
-set(ENGINE_SCRIPT_SRCS
     core/script/LuaBinding.cpp
     core/script/LuaFunctionBase.cpp
     core/script/LuaScript.cpp
@@ -728,15 +830,18 @@ set(ENGINE_SCRIPT_SRCS
     core/script/binding/ObjectClassesLua.cpp
     core/script/binding/ThreadClassesLua.cpp
     core/script/binding/UtilClassesLua.cpp
-)
-
-set(ENGINE_SUBSYSTEM_SRCS
+    core/shader/ShaderData.cpp
+    core/shader/ShaderDataSerializer.cpp
     core/subsystem/ActionSystem.cpp
     core/subsystem/AudioSystem.cpp
     core/subsystem/MeshSystem.cpp
     core/subsystem/PhysicsSystem.cpp
     core/subsystem/RenderSystem.cpp
     core/subsystem/UISystem.cpp
+    core/texture/Framebuffer.cpp
+    core/texture/IBLEnvironment.cpp
+    core/texture/Texture.cpp
+    core/texture/TextureData.cpp
     core/thread/ResourceProgress.cpp
     core/thread/ThreadPoolManager.cpp
     core/util/Angle.cpp
@@ -748,17 +853,15 @@ set(ENGINE_SUBSYSTEM_SRCS
     core/util/XMLUtils.cpp
 )
 
-set(DORIAX_SRCS
-    ${ENGINE_CORE_SRCS}
-    ${ENGINE_ACTION_SRCS}
-    ${ENGINE_BUFFER_SRCS}
-    ${ENGINE_ECS_SRCS}
-    ${ENGINE_IO_SRCS}
-    ${ENGINE_MATH_SRCS}
-    ${ENGINE_OBJECT_SRCS}
-    ${ENGINE_RENDER_SRCS}
-    ${ENGINE_SCRIPT_SRCS}
-    ${ENGINE_SUBSYSTEM_SRCS}
+set(RENDER_SOKOL_SRC
+    renders/sokol/SokolBuffer.cpp
+    renders/sokol/SokolTexture.cpp
+    renders/sokol/SokolSystem.cpp
+    renders/sokol/SokolCamera.cpp
+    renders/sokol/SokolObject.cpp
+    renders/sokol/SokolShader.cpp
+    renders/sokol/SokolCmdQueue.cpp
+    renders/sokol/SokolFramebuffer.cpp
 )
 
 add_library(
@@ -766,57 +869,9 @@ add_library(
 
     ${DORIAX_LIB_TYPE}
 
+    ${RENDER_SOKOL_SRC}
     ${DORIAX_SRCS}
 )
-
-target_include_directories(doriax PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-    ${CMAKE_CURRENT_SOURCE_DIR}/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/action
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/buffer
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/component
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/ecs
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/io
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/manager
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/math
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/object
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/sound
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/ui
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/environment
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/object/physics
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/pool
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/registry
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/render
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/script
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/shader
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/subsystem
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/texture
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/util
-    ${CMAKE_CURRENT_SOURCE_DIR}/renders
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/luabridge3
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/json
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/sokol
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/lua
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/stb
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/nanosvg
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/soloud/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinyobjloader
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinygltf
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/tinyxml2
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/box2d/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/joltphysics
-)
-
-if(DEFINED NO_LUA_INIT)
-    target_compile_definitions(doriax PRIVATE "NO_LUA_INIT=${NO_LUA_INIT}")
-    unset(NO_LUA_INIT CACHE)
-endif()
-if(DEFINED NO_CPP_INIT)
-    target_compile_definitions(doriax PRIVATE "NO_CPP_INIT=${NO_CPP_INIT}")
-    unset(NO_CPP_INIT CACHE)
-endif()
 
 find_package(Threads REQUIRED)
 target_link_libraries(doriax PRIVATE Threads::Threads)
@@ -830,7 +885,7 @@ target_link_libraries(
 
     PUBLIC
 
-    sokol lua stb tinyobjloader tinygltf tinyxml2 soloud box2d joltphysics
+    sokol lua stb tinyobjloader tinygltf tinyxml2 soloud box2d joltphysics harfbuzz sheenbidi
 )
 
 set_target_properties(
@@ -845,14 +900,6 @@ set_target_properties(
     CXX_STANDARD_REQUIRED ON
 )
 
-if(UNIX)
-    set_target_properties(doriax PROPERTIES
-        BUILD_WITH_INSTALL_RPATH TRUE
-        BUILD_RPATH "$ORIGIN;$ORIGIN/libs/tracy;${CMAKE_BINARY_DIR}/libs/tracy"
-        INSTALL_RPATH "$ORIGIN"
-    )
-endif()
-
 if(DORIAX_SHARED)
     target_compile_definitions(doriax 
         PRIVATE 
@@ -860,10 +907,6 @@ if(DORIAX_SHARED)
         PUBLIC
         DORIAX_SHARED
     )
-endif()
-
-if(TRACY_ENABLE)
-    target_link_libraries(doriax PUBLIC Tracy::TracyClient)
 endif()
 
 # =============================================================

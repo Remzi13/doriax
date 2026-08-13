@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(doriax-editor)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Tag when the commit has one, short hash otherwise. CI passes it in, local
-# builds ask git so Help > About shows something real.
+# Same as CI (.github/workflows/cmake.yml): git describe --tags --always --dirty.
+# CI passes DORIAXEDITOR_VERSION explicitly; local builds ask git here.
 if(NOT DORIAXEDITOR_VERSION)
     find_package(Git QUIET)
     if(GIT_FOUND)
@@ -41,31 +38,51 @@ if(APPLE)
 endif()
 
 set(DORIAX_SHARED ON)
-set(GRAPHIC_BACKEND "glcore")
-
-option(DORIAX_BUILD_EDITOR "Build the editor executable" ON)
-option(DORIAX_BUILD_ENGINE "Build the engine library" ON)
-option(DORIAX_BUILD_SHADERCOMPILER "Build the shader compiler" ON)
 
 set(ENABLE_OPT OFF CACHE BOOL "Enables spirv-opt capability if present" FORCE)
 
-# Tracy Profiler Integration Option
-option(TRACY_ENABLE "Enable Tracy Profiler" ON)
-
-if(TRACY_ENABLE)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    set(TRACY_STATIC OFF CACHE BOOL "Build Tracy as a shared library for PIC compatibility" FORCE)
-    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
-    add_subdirectory(libs/tracy EXCLUDE_FROM_ALL)
-
-    add_compile_definitions(TRACY_ENABLE)
-    add_compile_definitions(TRACY_IMPORTS)
-endif()
-
+# Each desktop OS is served by its own native backend and nothing else, so this
+# is a detection rather than a choice.
 if(NOT API_BACKEND)
-    set(API_BACKEND "glfw")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(API_BACKEND "linux")
+    elseif(WIN32)
+        set(API_BACKEND "win")
+    elseif(APPLE)
+        set(API_BACKEND "mac")
+    else()
+        message(FATAL_ERROR "No native editor backend for ${CMAKE_SYSTEM_NAME} (expected Linux, Windows, or macOS)")
+    endif()
 endif()
 message(STATUS "API backend is set to ${API_BACKEND}")
+
+# The native Linux and Windows backends render through Vulkan or OpenGL; macOS
+# is tied to Metal.
+if(API_BACKEND STREQUAL "linux" OR API_BACKEND STREQUAL "win")
+    if(NOT GRAPHIC_BACKEND)
+        if(API_BACKEND STREQUAL "win")
+            set(GRAPHIC_BACKEND "glcore")
+        else()
+            set(GRAPHIC_BACKEND "vulkan")
+        endif()
+    elseif(NOT GRAPHIC_BACKEND STREQUAL "vulkan" AND NOT GRAPHIC_BACKEND STREQUAL "glcore")
+        message(FATAL_ERROR "API_BACKEND=${API_BACKEND} supports GRAPHIC_BACKEND vulkan or glcore")
+    endif()
+else()
+    set(GRAPHIC_BACKEND "metal")
+endif()
+message(STATUS "Graphic backend is set to ${GRAPHIC_BACKEND}")
+
+# Only macOS keeps the menu bar outside the window, so it is the one platform
+# where a native menu is worth its own implementation. ImGui draws it elsewhere.
+if(NOT DEFINED NATIVE_MENU)
+    if(API_BACKEND STREQUAL "mac")
+        set(NATIVE_MENU ON)
+    else()
+        set(NATIVE_MENU OFF)
+    endif()
+endif()
+message(STATUS "Native menu is set to ${NATIVE_MENU}")
 
 if(POLICY CMP0072)
   cmake_policy(SET CMP0072 NEW) # NEW for GLVND, OLD for legacy OpenGL
@@ -88,13 +105,11 @@ if(WIN32)
     if(MINGW)
         set(MINGW_STATIC_FLAGS -static -static-libgcc -static-libstdc++)
     endif()
-
-    set(CMAKE_PREFIX_PATH "$ENV{ProgramFiles}/GLFW" ${CMAKE_PREFIX_PATH})
-    set(CMAKE_PREFIX_PATH "$ENV{ProgramFiles\(X86\)}/GLFW" ${CMAKE_PREFIX_PATH})
 endif()
 
 set(IMGUI_DIR libs/imgui)
 set(EDITOR_DIR editor)
+set(DORIAX_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 
 # Icon and version resource for one executable. Each target needs its own so
 # OriginalFilename matches the file on disk. Added after Defender quarantined
@@ -131,8 +146,6 @@ if(WIN32)
     )
 endif()
 
-# Find OpenGL
-find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # The AI HTTP client uses the native WinHTTP backend on Windows (no external
@@ -148,45 +161,118 @@ endif()
 set(BACKEND_SOURCES)
 set(BACKEND_LIBS)
 
-if(API_BACKEND STREQUAL "glfw")
-    find_package(glfw3 REQUIRED)
+if(API_BACKEND STREQUAL "linux")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "API_BACKEND=linux is only available on Linux")
+    endif()
+    find_package(X11 REQUIRED COMPONENTS Xrandr)
 
-    if(NOT DEFINED GLFW_LIBRARIES)
-        set(GLFW_LIBRARIES glfw)
+    list(APPEND BACKEND_SOURCES
+        ${EDITOR_DIR}/backend/BackendLinux.cpp
+        ${DORIAX_ROOT}/platform/linux/WindowLinux.cpp
+        ${DORIAX_ROOT}/platform/linux/GamepadDB.cpp
+    )
+    list(APPEND BACKEND_LIBS X11::X11 X11::Xrandr)
+
+    if(GRAPHIC_BACKEND STREQUAL "vulkan")
+        find_package(Vulkan REQUIRED)
+        list(APPEND BACKEND_LIBS Vulkan::Vulkan)
+        add_definitions("-DVK_USE_PLATFORM_XLIB_KHR")
+    else()
+        find_package(OpenGL REQUIRED)
+    endif()
+elseif(API_BACKEND STREQUAL "win")
+    if(NOT WIN32)
+        message(FATAL_ERROR "API_BACKEND=win is only available on Windows")
+    endif()
+    list(APPEND BACKEND_SOURCES
+        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+        ${EDITOR_DIR}/backend/BackendWin.cpp
+        ${DORIAX_ROOT}/platform/win/WindowWin.cpp
+        ${DORIAX_ROOT}/platform/win/GamepadWin.cpp
+    )
+
+    list(APPEND BACKEND_LIBS
+        user32
+        gdi32
+        dwmapi
+        shell32
+    )
+
+    if(GRAPHIC_BACKEND STREQUAL "vulkan")
+        find_package(Vulkan REQUIRED)
+        list(APPEND BACKEND_LIBS Vulkan::Vulkan)
+        add_definitions("-DVK_USE_PLATFORM_WIN32_KHR")
+    else()
+        list(APPEND BACKEND_LIBS opengl32)
+    endif()
+elseif(API_BACKEND STREQUAL "mac")
+    if(NOT APPLE)
+        message(FATAL_ERROR "API_BACKEND=mac is only available on macOS")
     endif()
 
     list(APPEND BACKEND_SOURCES
-        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-        ${EDITOR_DIR}/backend/BackendGLFW.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_osx.mm
+        ${EDITOR_DIR}/backend/BackendMac.mm
+        ${DORIAX_ROOT}/platform/mac/WindowMac.mm
+        ${DORIAX_ROOT}/platform/apple/DoriaxGameController.mm
     )
 
     list(APPEND BACKEND_LIBS
-        ${GLFW_LIBRARIES}
+        "-framework AppKit"
+        "-framework CoreGraphics"
+        "-framework GameController"
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework QuartzCore"
     )
+
+    set_source_files_properties(
+        ${IMGUI_DIR}/backends/imgui_impl_osx.mm
+        ${IMGUI_DIR}/backends/imgui_impl_metal.mm
+        ${EDITOR_DIR}/backend/BackendMac.mm
+        ${DORIAX_ROOT}/platform/mac/WindowMac.mm
+        ${EDITOR_DIR}/util/GraphicUtils.cpp
+        ${DORIAX_ROOT}/platform/apple/DoriaxGameController.mm
+        PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+    )
+    set_source_files_properties(
+        ${EDITOR_DIR}/util/GraphicUtils.cpp
+        PROPERTIES LANGUAGE OBJCXX
+    )
+else()
+    message(FATAL_ERROR "Unknown API_BACKEND '${API_BACKEND}' (expected linux, win, or mac)")
 endif()
 
-if(API_BACKEND STREQUAL "sdl")
-    find_package(SDL2 REQUIRED)
-
-    list(APPEND BACKEND_SOURCES
-        ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
-        ${EDITOR_DIR}/backend/BackendSDL.cpp
-    )
-
-    list(APPEND BACKEND_LIBS
-        ${SDL2_LIBRARIES}
-    )
+# The native backends share the frame loop and pick a renderer by GRAPHIC_BACKEND
+if(API_BACKEND STREQUAL "linux" OR API_BACKEND STREQUAL "win")
+    list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/EditorFrame.cpp)
+    if(GRAPHIC_BACKEND STREQUAL "vulkan")
+        list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/backend/renderer/RendererVulkan.cpp)
+    else()
+        list(APPEND BACKEND_SOURCES ${EDITOR_DIR}/backend/renderer/RendererGL.cpp)
+    endif()
 endif()
 
-set(DORIAX_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 set(SHADERCOMPILER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/shadercompiler)
 
-add_compile_definitions(
-    DORIAX_EDITOR
-    DORIAX_CRASH_GUARD
-    NO_LUA_INIT
-)
+add_definitions("-DDORIAX_EDITOR")
+add_definitions("-DDORIAX_CRASH_GUARD")
 
+add_definitions("-DNO_LUA_INIT")
+#add_definitions("-DNO_CPP_INIT")
+if(GRAPHIC_BACKEND STREQUAL "vulkan")
+    add_definitions("-DSOKOL_VULKAN")
+elseif(GRAPHIC_BACKEND STREQUAL "metal")
+    add_definitions("-DSOKOL_METAL")
+else()
+    add_definitions("-DSOKOL_GLCORE")
+endif()
+if(NATIVE_MENU)
+    add_definitions("-DDORIAX_NATIVE_MENU")
+endif()
+add_definitions("-DWITH_MINIAUDIO") # For SoLoud
 set(NFD_PORTAL ON CACHE BOOL "Use xdg-desktop-portal instead of GTK") # For NFD
 
 set(SHADERS_DIR "${CMAKE_SOURCE_DIR}/engine/tools/shaderlib")
@@ -232,13 +318,66 @@ add_custom_command(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
-if(DORIAX_BUILD_ENGINE)
-    add_subdirectory(${DORIAX_ROOT})
+include_directories (${CMAKE_CURRENT_SOURCE_DIR})
+
+include_directories (${DORIAX_ROOT}/libs/sokol)
+include_directories (${DORIAX_ROOT}/libs/json)
+include_directories (${DORIAX_ROOT}/libs/lua)
+include_directories (${DORIAX_ROOT}/libs/luabridge3)
+include_directories (${DORIAX_ROOT}/libs/box2d/include)
+include_directories (${DORIAX_ROOT}/libs/joltphysics)
+include_directories (${DORIAX_ROOT}/libs/stb)
+include_directories (${DORIAX_ROOT}/libs/harfbuzz)
+include_directories (${DORIAX_ROOT}/libs/sheenbidi/Headers)
+include_directories (${DORIAX_ROOT}/libs/soloud/include)
+
+include_directories (${DORIAX_ROOT}/core)
+include_directories (${DORIAX_ROOT}/core/action)
+include_directories (${DORIAX_ROOT}/core/buffer)
+include_directories (${DORIAX_ROOT}/core/component)
+include_directories (${DORIAX_ROOT}/core/ecs)
+include_directories (${DORIAX_ROOT}/core/io)
+include_directories (${DORIAX_ROOT}/core/manager)
+include_directories (${DORIAX_ROOT}/core/math)
+include_directories (${DORIAX_ROOT}/core/object)
+include_directories (${DORIAX_ROOT}/core/object/sound)
+include_directories (${DORIAX_ROOT}/core/object/ui)
+include_directories (${DORIAX_ROOT}/core/object/environment)
+include_directories (${DORIAX_ROOT}/core/object/physics)
+include_directories (${DORIAX_ROOT}/core/pool)
+include_directories (${DORIAX_ROOT}/core/registry)
+include_directories (${DORIAX_ROOT}/core/render)
+include_directories (${DORIAX_ROOT}/core/script)
+include_directories (${DORIAX_ROOT}/core/shader)
+include_directories (${DORIAX_ROOT}/core/subsystem)
+include_directories (${DORIAX_ROOT}/core/texture)
+include_directories (${DORIAX_ROOT}/core/util)
+# GamepadMappings.h, shared by GamepadDB (editor) and GamepadLinux (games)
+include_directories (${DORIAX_ROOT}/platform/common)
+# renderer/Renderer.h, which EditorFrame.h includes from one directory up
+include_directories (${EDITOR_DIR}/backend)
+if(API_BACKEND STREQUAL "linux")
+    include_directories (${DORIAX_ROOT}/platform/linux) # WindowLinux.h, GamepadDB.h
+elseif(API_BACKEND STREQUAL "win")
+    include_directories (${DORIAX_ROOT}/platform/win) # GamepadWin.h for BackendWin
+elseif(API_BACKEND STREQUAL "mac")
+    # WindowMac.h for BackendMac, DoriaxGameController.h from the shared Apple path
+    include_directories (${DORIAX_ROOT}/platform/mac)
+    include_directories (${DORIAX_ROOT}/platform/apple)
+endif()
+include_directories (${DORIAX_ROOT}/renders)
+
+include_directories (${SHADERCOMPILER_ROOT}/src)
+
+add_subdirectory(${DORIAX_ROOT})
+
+# The engine compiles sokol's Vulkan backend, so it needs the headers and the
+# loader itself. Only the standalone engine build sets this up on its own.
+if(GRAPHIC_BACKEND STREQUAL "vulkan")
+    target_link_libraries(doriax PUBLIC Vulkan::Vulkan)
 endif()
 
-if(DORIAX_BUILD_SHADERCOMPILER)
-    add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
-endif()
+add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
 
 add_subdirectory(libs/nfd)
 add_subdirectory(libs/yaml-cpp)
@@ -250,13 +389,23 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
+
+# ImGui platform backends go with API_BACKEND above, renderers with GRAPHIC_BACKEND
+if(GRAPHIC_BACKEND STREQUAL "vulkan")
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
+elseif(GRAPHIC_BACKEND STREQUAL "metal")
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_metal.mm)
+else()
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp)
+endif()
+
+include_directories (${EDITOR_DIR})
 
 add_custom_target(generate_shaders DEPENDS ${SHADERS_HEADER})
 add_custom_target(generate_api_suggestions DEPENDS ${API_SUGGESTIONS_HEADER})
 
-set(EDITOR_CORE_SOURCES
+set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/main.cpp
     ${EDITOR_DIR}/cli/CommandLine.cpp
     ${EDITOR_DIR}/App.cpp
@@ -272,9 +421,7 @@ set(EDITOR_CORE_SOURCES
     ${EDITOR_DIR}/Generator.cpp
     ${EDITOR_DIR}/Stream.cpp
     ${EDITOR_DIR}/Exporter.cpp
-)
 
-set(EDITOR_AI_SOURCES
     ${EDITOR_DIR}/ai/AiPathUtils.cpp
     ${EDITOR_DIR}/ai/AiProvider.cpp
     ${EDITOR_DIR}/ai/AiService.cpp
@@ -288,10 +435,9 @@ set(EDITOR_AI_SOURCES
     ${EDITOR_DIR}/ai/ModelCatalog.cpp
     ${EDITOR_DIR}/ai/RateLimitRetry.cpp
     ${EDITOR_DIR}/ai/SecretStore.cpp
-)
 
-set(EDITOR_UTIL_SOURCES
     ${EDITOR_DIR}/util/ShaderHeaderBuilder.cpp
+    ${EDITOR_DIR}/util/BidiText.cpp
     ${EDITOR_DIR}/util/GraphicUtils.cpp
     ${EDITOR_DIR}/util/CameraTextureLink.cpp
     ${EDITOR_DIR}/util/Clipboard.cpp
@@ -302,10 +448,9 @@ set(EDITOR_UTIL_SOURCES
     ${EDITOR_DIR}/util/TerrainMapFileWriter.cpp
     ${EDITOR_DIR}/util/UIUtils.cpp
     ${EDITOR_DIR}/util/CommandRunner.cpp
-    ${EDITOR_DIR}/shader/ShaderBuilder.cpp
-)
 
-set(EDITOR_WINDOW_SOURCES
+    ${EDITOR_DIR}/shader/ShaderBuilder.cpp
+
     ${EDITOR_DIR}/window/Properties.cpp
     ${EDITOR_DIR}/window/OutputWindow.cpp
     ${EDITOR_DIR}/window/SceneWindow.cpp
@@ -321,6 +466,7 @@ set(EDITOR_WINDOW_SOURCES
     ${EDITOR_DIR}/window/dialog/ComponentAddDialog.cpp
     ${EDITOR_DIR}/window/dialog/ProjectSaveDialog.cpp
     ${EDITOR_DIR}/window/dialog/ScriptCreateDialog.cpp
+    ${EDITOR_DIR}/window/dialog/ShaderForkDialog.cpp
     ${EDITOR_DIR}/window/dialog/TextureSlicerToolDialog.cpp
     ${EDITOR_DIR}/window/dialog/ExportWindow.cpp
     ${EDITOR_DIR}/window/dialog/ProjectSettingsWindow.cpp
@@ -329,9 +475,7 @@ set(EDITOR_WINDOW_SOURCES
     ${EDITOR_DIR}/window/widget/InputTextContextMenu.cpp
     ${EDITOR_DIR}/window/widget/SemanticSuggestions.cpp
     ${EDITOR_DIR}/window/widget/SelectableTextView.cpp
-)
 
-set(EDITOR_RENDER_SOURCES
     ${EDITOR_DIR}/render/ToolsLayer.cpp
     ${EDITOR_DIR}/render/UILayer.cpp
     ${EDITOR_DIR}/render/SceneRender.cpp
@@ -347,9 +491,7 @@ set(EDITOR_RENDER_SOURCES
     ${EDITOR_DIR}/render/preview/MeshPreviewRender.cpp
     ${EDITOR_DIR}/render/preview/DirectionRender.cpp
     ${EDITOR_DIR}/render/preview/ModelRender.cpp
-)
 
-set(EDITOR_COMMAND_SOURCES
     ${EDITOR_DIR}/command/CommandHandle.cpp
     ${EDITOR_DIR}/command/CommandHistory.cpp
     ${EDITOR_DIR}/command/type/AddChildSceneCmd.cpp
@@ -382,15 +524,7 @@ set(EDITOR_COMMAND_SOURCES
     ${EDITOR_DIR}/command/type/ComponentToBundleLocalCmd.cpp
     ${EDITOR_DIR}/command/type/ComponentToBundleSharedCmd.cpp
     ${EDITOR_DIR}/command/type/ForkShaderCmd.cpp
-)
 
-set(DORIAX_EDITOR_SOURCES
-    ${EDITOR_CORE_SOURCES}
-    ${EDITOR_AI_SOURCES}
-    ${EDITOR_UTIL_SOURCES}
-    ${EDITOR_WINDOW_SOURCES}
-    ${EDITOR_RENDER_SOURCES}
-    ${EDITOR_COMMAND_SOURCES}
     ${IMGUI_SOURCES}
     ${BACKEND_SOURCES}
 )
@@ -403,28 +537,12 @@ endif()
 function(configure_doriax_editor_target target_name)
     add_dependencies(${target_name} generate_shaders generate_api_suggestions)
 
-    target_compile_definitions(${target_name} PRIVATE
-        DORIAX_EDITOR
-        DORIAX_CRASH_GUARD
-        NO_LUA_INIT
-        SOKOL_GLCORE
-        WITH_MINIAUDIO
-    )
-
     target_include_directories(${target_name} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/${EDITOR_DIR}
-        ${DORIAX_ROOT}/platform/glfw
-        ${SHADERCOMPILER_ROOT}/src
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
         ${OPENGL_INCLUDE_DIR}
         ${GENERATED_DIR}
     )
-
-    if(TRACY_ENABLE)
-        target_include_directories(${target_name} PRIVATE libs/tracy/public)
-    endif()
 
     target_link_libraries(
         ${target_name}
@@ -456,127 +574,97 @@ function(configure_doriax_editor_target target_name)
         target_link_libraries(${target_name} PRIVATE "-framework AppKit")
     endif()
 
+    set_target_properties(
+        ${target_name}
+
+        PROPERTIES
+
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        OBJCXX_STANDARD 17
+        OBJCXX_STANDARD_REQUIRED ON
+    )
+
     if(APPLE)
         set_target_properties(${target_name} PROPERTIES
             BUILD_WITH_INSTALL_RPATH TRUE
-            BUILD_RPATH "@loader_path"
             INSTALL_RPATH "@loader_path"
         )
     elseif(UNIX)
         set_target_properties(${target_name} PROPERTIES
             BUILD_WITH_INSTALL_RPATH TRUE
-            BUILD_RPATH "$ORIGIN;$ORIGIN/libs/tracy;${CMAKE_BINARY_DIR}/libs/tracy"
             INSTALL_RPATH "$ORIGIN"
         )
     endif()
 endfunction()
 
-if(DORIAX_BUILD_EDITOR AND NOT DORIAX_BUILD_ENGINE)
-    message(FATAL_ERROR "DORIAX_BUILD_EDITOR requires DORIAX_BUILD_ENGINE=ON")
+add_executable(
+    doriax-editor
+
+    ${PLATFORM_EXEC_FLAGS}
+
+    ${DORIAX_EDITOR_SOURCES}
+    ${DORIAX_EDITOR_ICON_OBJECTS}
+)
+
+configure_doriax_editor_target(doriax-editor)
+
+if(PLATFORM_PROPERTIES_FLAGS)
+    set_target_properties(doriax-editor PROPERTIES ${PLATFORM_PROPERTIES_FLAGS})
 endif()
 
-if(DORIAX_BUILD_EDITOR)
-    add_executable(
-        doriax-editor
+add_custom_target(copy_doriax_editor_engine
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/engine
+        $<TARGET_FILE_DIR:doriax-editor>/engine
+    COMMENT "Copying engine to executable directory"
+)
 
-        ${PLATFORM_EXEC_FLAGS}
+add_dependencies(doriax-editor copy_doriax_editor_engine)
+
+set(DORIAX_EDITOR_INSTALL_TARGETS doriax-editor)
+
+# Windows GUI-subsystem executables do not behave like normal CLI programs
+# when launched from cmd.exe/PowerShell. Provide a console-subsystem twin for
+# automation while keeping Unix-like platforms on a single editor binary.
+#
+# EXCLUDE_FROM_ALL keeps it out of the default ("all") build, so local and IDE
+# builds only produce doriax-editor. Release builds compile it explicitly by
+# name (`cmake --build --target doriax-editor-cmd`, see
+# .github/workflows/cmake.yml); the install rule below still installs it because
+# CI builds it before installing.
+if(WIN32)
+    # Its own icon because both executables install to the same folder
+    doriax_add_windows_resource(
+        DORIAX_EDITOR_CMD_ICON_OBJECTS
+        doriax-editor-cmd
+        "doriax-editor-cmd.ico"
+        "doriax-editor-cmd.exe"
+        "Doriax Engine Editor (command line)"
+    )
+
+    add_executable(
+        doriax-editor-cmd
+
+        EXCLUDE_FROM_ALL
 
         ${DORIAX_EDITOR_SOURCES}
-        ${DORIAX_EDITOR_ICON_OBJECTS}
+        ${DORIAX_EDITOR_CMD_ICON_OBJECTS}
     )
 
-    configure_doriax_editor_target(doriax-editor)
-
-    if(PLATFORM_PROPERTIES_FLAGS)
-        set_target_properties(doriax-editor PROPERTIES ${PLATFORM_PROPERTIES_FLAGS})
-    endif()
-
-    if(TRACY_ENABLE)
-        if (WIN32)
-            add_custom_command(TARGET doriax-editor POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${CMAKE_BINARY_DIR}/libs/tracy/$<CONFIG>/TracyClient.dll
-                    $<TARGET_FILE_DIR:doriax-editor>/TracyClient.dll
-                COMMENT "Copying TracyClient.dll next to the editor executable"
-            )
-        elseif (UNIX)
-            add_custom_command(TARGET doriax-editor POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so
-                    $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${CMAKE_BINARY_DIR}/libs/tracy/libTracyClient.so.0.13.6
-                    $<TARGET_FILE_DIR:doriax-editor>/libTracyClient.so.0.13.6
-                COMMENT "Copying Tracy runtime library next to the editor executable"
-            )
-        endif()
-    endif()
-
-    add_custom_target(copy_doriax_editor_engine
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/engine
-            $<TARGET_FILE_DIR:doriax-editor>/engine
-        COMMENT "Copying engine to executable directory"
-    )
-
-    add_dependencies(doriax-editor copy_doriax_editor_engine)
-
-    set(DORIAX_EDITOR_INSTALL_TARGETS doriax-editor)
-
-    # Windows GUI-subsystem executables do not behave like normal CLI programs
-    # when launched from cmd.exe/PowerShell. Provide a console-subsystem twin for
-    # automation while keeping Unix-like platforms on a single editor binary.
-    #
-    # EXCLUDE_FROM_ALL keeps it out of the default ("all") build, so local and IDE
-    # builds only produce doriax-editor. Release builds compile it explicitly by
-    # name (`cmake --build --target doriax-editor-cmd`, see
-    # .github/workflows/cmake.yml); the install rule below still installs it because
-    # CI builds it before installing.
-    if(WIN32)
-        # Its own icon because both executables install to the same folder
-        doriax_add_windows_resource(
-            DORIAX_EDITOR_CMD_ICON_OBJECTS
-            doriax-editor-cmd
-            "doriax-editor-cmd.ico"
-            "doriax-editor-cmd.exe"
-            "Doriax Engine Editor (command line)"
-        )
-
-        add_executable(
-            doriax-editor-cmd
-
-            EXCLUDE_FROM_ALL
-
-            ${DORIAX_EDITOR_SOURCES}
-            ${DORIAX_EDITOR_CMD_ICON_OBJECTS}
-        )
-
-        configure_doriax_editor_target(doriax-editor-cmd)
-        add_dependencies(doriax-editor-cmd copy_doriax_editor_engine)
-        list(APPEND DORIAX_EDITOR_INSTALL_TARGETS doriax-editor-cmd)
-    endif()
-else()
-    set(DORIAX_EDITOR_INSTALL_TARGETS)
+    configure_doriax_editor_target(doriax-editor-cmd)
+    add_dependencies(doriax-editor-cmd copy_doriax_editor_engine)
+    list(APPEND DORIAX_EDITOR_INSTALL_TARGETS doriax-editor-cmd)
 endif()
 
-set(DORIAX_INSTALL_TARGETS)
-if(DORIAX_BUILD_ENGINE)
-    list(APPEND DORIAX_INSTALL_TARGETS doriax)
-endif()
-if(DORIAX_BUILD_EDITOR)
-    list(APPEND DORIAX_INSTALL_TARGETS ${DORIAX_EDITOR_INSTALL_TARGETS})
-endif()
-
-install(TARGETS ${DORIAX_INSTALL_TARGETS}
+install(TARGETS ${DORIAX_EDITOR_INSTALL_TARGETS} doriax
         CONFIGURATIONS Release MinSizeRel 
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION bin
         ARCHIVE DESTINATION bin
 )
 
-if(DORIAX_BUILD_ENGINE)
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/engine
-            DESTINATION bin
-            CONFIGURATIONS Release MinSizeRel
-    )
-endif()
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/engine
+        DESTINATION bin
+        CONFIGURATIONS Release MinSizeRel
+)
