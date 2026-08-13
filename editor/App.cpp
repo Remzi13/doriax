@@ -1444,6 +1444,9 @@ void editor::App::show(){
 }
 
 void editor::App::engineInit(int argc, char** argv) {
+
+    PROFILE_INIT();
+
     Engine::systemInit(argc, argv, new editor::Platform(&project));
 
     // Check if there's a last opened project

@@ -6,6 +6,7 @@
 #include "renderer/Renderer.h"
 
 #include "Engine.h"
+#include "Profiler.h"
 
 #include "imgui_impl_win32.h"
 
@@ -816,9 +817,11 @@ int editor::Backend::init(int argc, char* argv[]) {
 
     backend->liveResizeFrame = [&]() { renderFrame(true); };
     while (!backend->shouldClose) {
+        PROFILE_BEGIN_FRAME();
         processMessages(backend->editorFrame.isIdle());
         if (backend->shouldClose) break;
         renderFrame(false);
+        PROFILE_END_FRAME();
     }
     backend->liveResizeFrame = {};
     KillTimer(backend->window, LIVE_RESIZE_TIMER_ID);

@@ -24,9 +24,6 @@
 #define PROFILE_ENABLED 0
 #endif
 
-// ============================================================================
-//        ( ,  Tracy )
-// ============================================================================
 
 #if PROFILE_ENABLED
 
@@ -41,15 +38,12 @@
 
 #define PROFILE_TEXT(text, size) ZoneText(text, size)
 #define PROFILE_LOG(text, size) TracyMessage(text, size)
-    
-// ������� �������� (��������, FPS, ���-�� DrawCalls, ���������� ������)
+
 #define PROFILE_PLOT(name, val) TracyPlot(name, val)
 
-// ����� ������
 #define PROFILE_ALLOC(ptr, size) TracyAlloc(ptr, size)
 #define PROFILE_FREE(ptr) TracyFree(ptr)
 
-// GPU �������������� (OpenGL)
 #if HAS_TRACY_GPU
 #define PROFILE_GPU_INIT() TracyGpuContext
 #define PROFILE_GPU_FRAME() TracyGpuCollect
@@ -61,8 +55,6 @@
 #endif
 
 #else
-
-    //      Tracy (TRACY_ENABLE=OFF)
 #define PROFILE_INIT()
 #define PROFILE_BEGIN_FRAME()
 #define PROFILE_END_FRAME()
@@ -86,14 +78,11 @@ namespace doriax {
 
     class DORIAX_API Profiler {
     public:
-        // ������������� �������������� ������ (��������, GPU)
         static void Init();
 
-        // ���������� ��������� ���������� (��������, ���� GPU ���������)
         static void BeginFrame();
         static void EndFrame();
 
-        // ������� C++ ������-������� ��� ����������� � ���������
         static void Log( const std::string& message );
         static void Plot( const char* name, int64_t value );
         static void Plot( const char* name, double value );
