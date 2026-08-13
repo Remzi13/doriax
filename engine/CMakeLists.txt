@@ -724,6 +724,7 @@ set(DORIAX_SRCS
     core/Engine.cpp
     core/Input.cpp
     core/Log.cpp
+    core/Profiler.cpp
     core/Scene.cpp
     core/System.cpp
     core/action/Action.cpp

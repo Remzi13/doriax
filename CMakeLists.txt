@@ -40,6 +40,7 @@ endif()
 set(DORIAX_SHARED ON)
 
 set(ENABLE_OPT OFF CACHE BOOL "Enables spirv-opt capability if present" FORCE)
+option(TRACY_ENABLE "Enable Tracy profiler" ON)
 
 # Each desktop OS is served by its own native backend and nothing else, so this
 # is a detection rather than a choice.
@@ -377,10 +378,16 @@ if(GRAPHIC_BACKEND STREQUAL "vulkan")
     target_link_libraries(doriax PUBLIC Vulkan::Vulkan)
 endif()
 
+if(TRACY_ENABLE)
+    target_link_libraries(doriax PUBLIC TracyClient)
+endif()
+
 add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
 
 add_subdirectory(libs/nfd)
 add_subdirectory(libs/yaml-cpp)
+add_subdirectory(libs/tracy)
+set_target_properties(TracyClient PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Add ImGui source files
 set(IMGUI_SOURCES
