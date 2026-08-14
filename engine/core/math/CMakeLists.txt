@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-add_library(doriax_math STATIC
+set(SOURCES
     AABB.h
     AABB.cpp
     Matrix3.h
@@ -26,6 +26,12 @@ add_library(doriax_math STATIC
     Vector4.h
     Vector4.cpp
 )
+
+add_library(doriax_math STATIC
+    ${SOURCES}
+)
+
+source_group("engine/math" FILES ${SOURCES})
 
 target_include_directories(doriax_math
     PUBLIC
