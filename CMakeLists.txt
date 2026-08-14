@@ -403,9 +403,7 @@ set_target_properties(TracyClient PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Put vendored dependencies under a Visual Studio solution folder.
 doriax_group_in_third_party(
-    box2d
-    doriax_math
-    doriax_render
+    box2d    
     glslang
     glslang-default-resource-limits
     harfbuzz
