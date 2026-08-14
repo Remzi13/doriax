@@ -697,6 +697,9 @@ include_directories(libs/joltphysics)
 include_directories(libs/harfbuzz)
 include_directories(libs/sheenbidi/Headers)
 
+add_subdirectory(core/math)
+add_subdirectory(core/render)
+
 add_subdirectory(libs/sokol)
 add_subdirectory(libs/lua)
 add_subdirectory(libs/stb)
@@ -753,18 +756,6 @@ set(DORIAX_SRCS
     core/manager/BundleManager.cpp
     core/manager/SceneManager.cpp
     core/io/UserSettings.cpp
-    core/math/AABB.cpp
-    core/math/Matrix3.cpp
-    core/math/Matrix4.cpp
-    core/math/OBB.cpp
-    core/math/Plane.cpp
-    core/math/Quaternion.cpp
-    core/math/Ray.cpp
-    core/math/Rect.cpp
-    core/math/Sphere.cpp
-    core/math/Vector2.cpp
-    core/math/Vector3.cpp
-    core/math/Vector4.cpp
     core/object/Bone.cpp
     core/object/Camera.cpp
     core/object/EntityHandle.cpp
@@ -811,13 +802,6 @@ set(DORIAX_SRCS
     core/pool/TexturePool.cpp
     core/pool/ModelPool.cpp
     core/registry/EntityRegistry.cpp
-    core/render/BufferRender.cpp
-    core/render/CameraRender.cpp
-    core/render/FramebufferRender.cpp
-    core/render/ObjectRender.cpp
-    core/render/ShaderRender.cpp
-    core/render/SystemRender.cpp
-    core/render/TextureRender.cpp
     core/script/LuaBinding.cpp
     core/script/LuaFunctionBase.cpp
     core/script/LuaScript.cpp
@@ -886,6 +870,8 @@ target_link_libraries(
 
     PUBLIC
 
+    doriax_math
+    doriax_render
     sokol lua stb tinyobjloader tinygltf tinyxml2 soloud box2d joltphysics harfbuzz sheenbidi
 )
 
