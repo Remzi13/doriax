@@ -384,6 +384,8 @@ endif()
 
 add_subdirectory(${SHADERCOMPILER_ROOT} EXCLUDE_FROM_ALL)
 
+add_subdirectory(editor/render)
+
 add_subdirectory(libs/nfd)
 add_subdirectory(libs/yaml-cpp)
 add_subdirectory(libs/tracy)
@@ -483,22 +485,6 @@ set(DORIAX_EDITOR_SOURCES
     ${EDITOR_DIR}/window/widget/SemanticSuggestions.cpp
     ${EDITOR_DIR}/window/widget/SelectableTextView.cpp
 
-    ${EDITOR_DIR}/render/ToolsLayer.cpp
-    ${EDITOR_DIR}/render/UILayer.cpp
-    ${EDITOR_DIR}/render/SceneRender.cpp
-    ${EDITOR_DIR}/render/SceneRender2D.cpp
-    ${EDITOR_DIR}/render/SceneRender3D.cpp
-    ${EDITOR_DIR}/render/gizmo/TranslateGizmo.cpp
-    ${EDITOR_DIR}/render/gizmo/RotateGizmo.cpp
-    ${EDITOR_DIR}/render/gizmo/ScaleGizmo.cpp
-    ${EDITOR_DIR}/render/gizmo/Object2DGizmo.cpp
-    ${EDITOR_DIR}/render/gizmo/AnchorGizmo.cpp
-    ${EDITOR_DIR}/render/gizmo/ViewportGizmo.cpp
-    ${EDITOR_DIR}/render/preview/MaterialRender.cpp
-    ${EDITOR_DIR}/render/preview/MeshPreviewRender.cpp
-    ${EDITOR_DIR}/render/preview/DirectionRender.cpp
-    ${EDITOR_DIR}/render/preview/ModelRender.cpp
-
     ${EDITOR_DIR}/command/CommandHandle.cpp
     ${EDITOR_DIR}/command/CommandHistory.cpp
     ${EDITOR_DIR}/command/type/AddChildSceneCmd.cpp
@@ -564,6 +550,7 @@ function(configure_doriax_editor_target target_name)
         shadercompiler
         nfd
         yaml-cpp
+        editor-render
     )
 
     if(WIN32)
