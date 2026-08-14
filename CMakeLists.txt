@@ -112,6 +112,16 @@ set(IMGUI_DIR libs/imgui)
 set(EDITOR_DIR editor)
 set(DORIAX_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+function(doriax_group_in_third_party)
+    foreach(target_name IN LISTS ARGV)
+        if(TARGET ${target_name})
+            set_property(TARGET ${target_name} PROPERTY FOLDER "third party")
+        endif()
+    endforeach()
+endfunction()
+
 # Icon and version resource for one executable. Each target needs its own so
 # OriginalFilename matches the file on disk. Added after Defender quarantined
 # doriax-editor-cmd.exe, the only binary that shipped without any resource.
@@ -390,6 +400,44 @@ add_subdirectory(libs/nfd)
 add_subdirectory(libs/yaml-cpp)
 add_subdirectory(libs/tracy)
 set_target_properties(TracyClient PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Put vendored dependencies under a Visual Studio solution folder.
+doriax_group_in_third_party(
+    box2d
+    doriax_math
+    doriax_render
+    glslang
+    glslang-default-resource-limits
+    harfbuzz
+    joltphysics
+    sokol
+    lua
+    nfd
+    shadercompiler
+    sheenbidi
+    soloud
+    SPIRV
+    SPVRemapper
+    stb
+    tinygltf
+    tinyobjloader
+    tinyxml2
+    TracyClient
+    TracyClientF90
+    yaml-cpp
+    yaml-cpp-parse
+    yaml-cpp-read
+    yaml-cpp-sandbox
+    spirv-cross-core
+    spirv-cross-glsl
+    spirv-cross-cpp
+    spirv-cross-reflect
+    spirv-cross-msl
+    spirv-cross-hlsl
+    spirv-cross-util
+    spirv-cross-c
+    spirv-cross-c-shared
+)
 
 # Add ImGui source files
 set(IMGUI_SOURCES

@@ -36,4 +36,5 @@ set_target_properties(doriax_render PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
+    FOLDER "doriax"
 )

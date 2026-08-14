@@ -45,5 +45,5 @@ target_compile_features(doriax_math PUBLIC cxx_std_17)
 set_target_properties(doriax_math PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
+    CXX_STANDARD_REQUIRED ON    
 )
