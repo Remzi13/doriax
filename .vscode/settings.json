@@ -1,0 +1,14 @@
+{
+  "cmake.configureOnOpen": true,
+  "cmake.generator": "Ninja",
+  "cmake.preferredGenerators": ["Ninja", "Unix Makefiles"],
+  "cmake.buildDirectory": "${workspaceFolder}/build-ninja",
+  "cmake.configureSettings": {
+    "CMAKE_BUILD_TYPE": "Debug",
+    "CMAKE_C_COMPILER": "clang",
+    "CMAKE_CXX_COMPILER": "clang++",
+    "API_BACKEND": "linux",
+    "GRAPHIC_BACKEND": "vulkan"
+  },
+  "C_Cpp.default.compilerPath": "/usr/bin/clang++"
+}
